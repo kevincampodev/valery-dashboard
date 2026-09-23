@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge_estado %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>{{ factura.proveedor.nombre }} · {{ factura.numero }} {{ badge_estado(factura.estado) }}</h2>
+  <div>
+    <a href="{{ url_for('deudas.formulario', id=factura.id) }}" class="btn btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>
+    <a href="{{ url_for('deudas.index') }}" class="btn btn-link">Volver</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-7">
+    <div class="card card-body">
+      <table class="table table-sm mb-0">
+        <tr><th>Emisión</th><td>{{ factura.fecha_emision.strftime('%d/%m/%Y') }}</td></tr>
+        <tr><th>Vence (factura)</th><td>{{ factura.fecha_vencimiento.strftime('%d/%m/%Y') }}</td></tr>
+        <tr><th>Fecha pactada</th><td>{{ factura.fecha_pactada.strftime('%d/%m/%Y') if factura.fecha_pactada else '—' }}</td></tr>
+        <tr><th>Subtotal</th><td>{{ factura.subtotal|pesos }}</td></tr>
+        <tr><th>IVA</th><td>{{ factura.iva|pesos }}</td></tr>
+        <tr><th>Total</th><td class="fw-bold">{{ factura.total|pesos }}</td></tr>
+        <tr><th>Saldo</th><td class="fw-bold text-danger">{{ factura.saldo|pesos }}</td></tr>
+        <tr><th>Etiqueta</th><td>{{ factura.etiqueta or '—' }}</td></tr>
+        <tr><th>CUFE</th><td class="text-break small">{{ factura.cufe or '—' }}</td></tr>
+        <tr><th>Notas</th><td>{{ factura.notas or '—' }}</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="col-md-5">
+    <div class="card card-body">
+      <h5>Documentos</h5>
+      <ul class="list-group list-group-flush">
+        {% for d in factura.documentos %}
+        <li class="list-group-item">
+          <i class="bi {{ 'bi-file-earmark-pdf text-danger' if d.tipo == 'pdf' else 'bi-file-earmark-code' if d.tipo == 'xml' else 'bi-file-earmark-image' }}"></i>
+          <a href="{{ url_for('deudas.documento', id=d.id) }}" target="_blank">{{ d.nombre_original }}</a>
+        </li>
+        {% else %}
+        <li class="list-group-item text-muted">Sin documentos</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}

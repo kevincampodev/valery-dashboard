@@ -1,0 +1,4 @@
+{% macro badge_estado(estado) %}
+  {% set colores = {'pagada': 'success', 'vencida': 'danger', 'por vencer': 'warning', 'al día': 'secondary'} %}
+  <span class="badge bg-{{ colores.get(estado, 'secondary') }}">{{ estado|capitalize }}</span>
+{% endmacro %}

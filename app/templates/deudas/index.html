@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge_estado %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Deudas</h2>
+  <div>
+    <a href="{{ url_for('deudas.proveedores') }}" class="btn btn-outline-secondary"><i class="bi bi-building"></i> Proveedores</a>
+    <a href="{{ url_for('deudas.formulario') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nueva factura</a>
+  </div>
+</div>
+
+<form class="row g-2 mb-3" method="get">
+  <div class="col-md-4">
+    <select name="proveedor" class="form-select" onchange="this.form.submit()">
+      <option value="">Todos los proveedores</option>
+      {% for p in proveedores %}
+      <option value="{{ p.id }}" {% if p.id == proveedor_id %}selected{% endif %}>{{ p.nombre }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <select name="estado" class="form-select" onchange="this.form.submit()">
+      <option value="">Todos los estados</option>
+      {% for e in ['vencida', 'por vencer', 'al día', 'pagada'] %}
+      <option value="{{ e }}" {% if e == estado %}selected{% endif %}>{{ e|capitalize }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</form>
+
+<div class="table-responsive">
+<table class="table table-hover align-middle">
+  <thead class="table-light">
+    <tr><th>Proveedor</th><th>Factura</th><th>Emisión</th><th>Fecha límite</th>
+        <th class="text-end">Total</th><th class="text-end">Saldo</th><th>Estado</th></tr>
+  </thead>
+  <tbody>
+    {% for f in facturas %}
+    <tr onclick="location.href='{{ url_for('deudas.detalle', id=f.id) }}'" style="cursor:pointer">
+      <td>{{ f.proveedor.nombre }}</td>
+      <td>{{ f.numero }} {% if f.etiqueta %}<small class="badge bg-info text-dark">{{ f.etiqueta }}</small>{% endif %}</td>
+      <td>{{ f.fecha_emision.strftime('%d/%m/%Y') }}</td>
+      <td>{{ f.fecha_limite.strftime('%d/%m/%Y') }}
+        {% if f.fecha_pactada %}<i class="bi bi-hand-thumbs-up text-primary" title="Fecha pactada"></i>{% endif %}
+        {% if f.saldo and f.dias_para_vencer < 0 %}<br><small class="text-danger">{{ -f.dias_para_vencer }} días vencida</small>{% endif %}
+      </td>
+      <td class="text-end">{{ f.total|pesos }}</td>
+      <td class="text-end fw-bold">{{ f.saldo|pesos }}</td>
+      <td>{{ badge_estado(f.estado) }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="text-center text-muted py-4">No hay facturas registradas.</td></tr>
+    {% endfor %}
+  </tbody>
+  <tfoot><tr class="table-light">
+    <th colspan="5" class="text-end">Saldo total</th>
+    <th class="text-end text-danger">{{ total_saldo|pesos }}</th><th></th>
+  </tr></tfoot>
+</table>
+</div>
+{% endblock %}
