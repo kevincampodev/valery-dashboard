@@ -1,0 +1,2 @@
+.sidebar { width: 240px; min-height: 100vh; }
+.sidebar .nav-link.active { background: rgba(255,255,255,.15); border-radius: 6px; }

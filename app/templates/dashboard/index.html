@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="mb-4">Resumen general</h2>
+<div class="row g-3">
+  {% for titulo, valor, color in [
+    ('Deuda total', 0, 'danger'),
+    ('Vence esta semana', 0, 'warning'),
+    ('Ventas del mes', 0, 'success'),
+    ('Comisiones por pagar', 0, 'primary')] %}
+  <div class="col-md-3">
+    <div class="card border-{{ color }}">
+      <div class="card-body">
+        <small class="text-muted">{{ titulo }}</small>
+        <h4 class="text-{{ color }}">{{ valor|pesos }}</h4>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
