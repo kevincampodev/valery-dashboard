@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="mb-3">Proveedores</h2>
+<form method="post" class="card card-body mb-4">
+  <div class="row g-2">
+    <div class="col-md-3"><input name="nombre" class="form-control" placeholder="Nombre *" required></div>
+    <div class="col-md-2"><input name="nit" class="form-control" placeholder="NIT"></div>
+    <div class="col-md-2"><input name="telefono" class="form-control" placeholder="Teléfono"></div>
+    <div class="col-md-3"><input name="email" type="email" class="form-control" placeholder="Email"></div>
+    <div class="col-md-1"><input name="dias_credito" type="number" class="form-control" placeholder="Días"></div>
+    <div class="col-md-1"><button class="btn btn-primary w-100"><i class="bi bi-plus-lg"></i></button></div>
+  </div>
+</form>
+
+<table class="table table-hover">
+  <thead class="table-light"><tr><th>Proveedor</th><th>NIT</th><th>Contacto</th><th>Días crédito</th><th>Facturas</th><th class="text-end">Deuda</th></tr></thead>
+  <tbody>
+    {% for p in proveedores %}
+    <tr>
+      <td><a href="{{ url_for('deudas.index', proveedor=p.id) }}">{{ p.nombre }}</a></td>
+      <td>{{ p.nit or '—' }}</td>
+      <td>{{ p.telefono or '' }} {{ p.email or '' }}</td>
+      <td>{{ p.dias_credito }}</td>
+      <td>{{ p.facturas|length }}</td>
+      <td class="text-end fw-bold">{{ p.deuda_total|pesos }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="text-center text-muted">Aún no hay proveedores.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

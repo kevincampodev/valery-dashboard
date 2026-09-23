@@ -14,7 +14,7 @@
     <h5 class="mb-4"><i class="bi bi-bag-heart"></i> Valery Fashion</h5>
     {% set modulos = [
       ('dashboard.index', 'bi-speedometer2', 'Inicio'),
-      (None, 'bi-receipt', 'Deudas'),
+      ('deudas.index', 'bi-receipt', 'Deudas'),
       (None, 'bi-cash-coin', 'Abonos'),
       (None, 'bi-calendar-event', 'Pagos pendientes'),
       (None, 'bi-graph-up', 'Ventas diarias'),
@@ -27,7 +27,7 @@
       {% for endpoint, icono, nombre in modulos %}
       <li class="nav-item">
         {% if endpoint %}
-        <a class="nav-link text-white {% if request.endpoint == endpoint %}active{% endif %}"
+        <a class="nav-link text-white {% if request.blueprint == endpoint.split('.')[0] %}active{% endif %}"
            href="{{ url_for(endpoint) }}"><i class="bi {{ icono }}"></i> {{ nombre }}</a>
         {% else %}
         <span class="nav-link text-secondary"><i class="bi {{ icono }}"></i> {{ nombre }}

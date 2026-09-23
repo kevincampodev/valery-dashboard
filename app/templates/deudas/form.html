@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="mb-3">{{ 'Editar' if factura.id else 'Nueva' }} factura</h2>
+<form method="post" enctype="multipart/form-data" class="card card-body">
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">Proveedor *</label>
+      <select name="proveedor_id" class="form-select" required>
+        <option value="">Selecciona...</option>
+        {% for p in proveedores %}
+        <option value="{{ p.id }}" {% if p.id == factura.proveedor_id %}selected{% endif %}>{{ p.nombre }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Número *</label>
+      <input name="numero" class="form-control" value="{{ factura.numero or '' }}" required>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Etiqueta</label>
+      <input name="etiqueta" class="form-control" value="{{ factura.etiqueta or '' }}" placeholder="Temporada diciembre">
+    </div>
+
+    <div class="col-md-4">
+      <label class="form-label">Fecha emisión *</label>
+      <input type="date" name="fecha_emision" class="form-control" value="{{ factura.fecha_emision or '' }}" required>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Vencimiento (según factura) *</label>
+      <input type="date" name="fecha_vencimiento" class="form-control" value="{{ factura.fecha_vencimiento or '' }}" required>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Fecha pactada</label>
+      <input type="date" name="fecha_pactada" class="form-control" value="{{ factura.fecha_pactada or '' }}">
+      <small class="text-muted">Si acordaron otra fecha con el proveedor</small>
+    </div>
+
+    <div class="col-md-4">
+      <label class="form-label">Subtotal</label>
+      <input name="subtotal" class="form-control" value="{{ factura.subtotal or '' }}">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">IVA</label>
+      <input name="iva" class="form-control" value="{{ factura.iva or '' }}">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Total *</label>
+      <input name="total" class="form-control" value="{{ factura.total or '' }}" required>
+    </div>
+
+    <div class="col-md-8">
+      <label class="form-label">CUFE</label>
+      <input name="cufe" class="form-control" value="{{ factura.cufe or '' }}">
+    </div>
+    <div class="col-md-4 d-flex align-items-end">
+      <div class="form-check">
+        <input type="checkbox" name="pagada_contado" id="contado" class="form-check-input" {% if factura.pagada_contado %}checked{% endif %}>
+        <label for="contado" class="form-check-label">Pagada de contado</label>
+      </div>
+    </div>
+
+    <div class="col-12">
+      <label class="form-label">Adjuntos (PDF, XML, imágenes)</label>
+      <input type="file" name="archivos" class="form-control" multiple>
+    </div>
+    <div class="col-12">
+      <label class="form-label">Notas</label>
+      <textarea name="notas" class="form-control" rows="2">{{ factura.notas or '' }}</textarea>
+    </div>
+  </div>
+  <div class="mt-3">
+    <button class="btn btn-primary"><i class="bi bi-save"></i> Guardar</button>
+    <a href="{{ url_for('deudas.index') }}" class="btn btn-link">Cancelar</a>
+  </div>
+</form>
+{% endblock %}
