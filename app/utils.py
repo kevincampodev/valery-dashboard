@@ -11,3 +11,14 @@ def a_pesos(texto):
 
 def a_fecha(texto):
     return date.fromisoformat(texto) if texto else None
+
+def nit_base(nit):
+    """'890.301.753-9' -> '890301753' (sin puntos ni dígito de verificación)"""
+    if not nit:
+        return ""
+    return re.sub(r"\D", "", nit.split("-")[0])
+
+
+def normalizar(texto):
+    """'LAZCHAV S.A.S' -> 'lazchavsas'"""
+    return re.sub(r"[^a-z0-9]", "", (texto or "").lower())
