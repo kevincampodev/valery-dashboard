@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Importar facturas DIAN</h2>
+  <a href="{{ url_for('deudas.index') }}" class="btn btn-link">Volver a deudas</a>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="card card-body mb-4">
+  <div class="row g-3 align-items-end">
+    <div class="col-md-6">
+      <label class="form-label">Archivos ZIP o XML</label>
+      <input type="file" name="archivos" class="form-control" accept=".zip,.xml" multiple required>
+      <small class="text-muted">Puedes subir el ZIP del correo, varios a la vez, o un ZIP con ZIPs adentro.</small>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Etiqueta (opcional)</label>
+      <input name="etiqueta" class="form-control" placeholder="Temporada diciembre">
+    </div>
+    <div class="col-md-2">
+      <button class="btn btn-primary w-100"><i class="bi bi-upload"></i> Importar</button>
+    </div>
+  </div>
+</form>
+
+{% if resultados %}
+{% set colores = {'importada': 'success', 'duplicada': 'secondary', 'error': 'danger'} %}
+<table class="table align-middle">
+  <thead class="table-light">
+    <tr><th>Origen</th><th>Proveedor</th><th>Factura</th><th>Vence</th><th class="text-end">Total</th><th>Resultado</th></tr>
+  </thead>
+  <tbody>
+    {% for r in resultados %}
+    <tr>
+      <td class="small text-muted">{{ r.origen }}</td>
+      <td>{{ r.datos.proveedor_nombre if r.datos else '—' }}</td>
+      <td>
+        {% if r.factura %}<a href="{{ url_for('deudas.detalle', id=r.factura.id) }}">{{ r.datos.numero }}</a>
+        {% else %}{{ r.datos.numero if r.datos else '—' }}{% endif %}
+      </td>
+      <td>{{ r.datos.fecha_vencimiento.strftime('%d/%m/%Y') if r.datos else '—' }}</td>
+      <td class="text-end">{{ r.datos.total|pesos if r.datos else '—' }}</td>
+      <td>
+        <span class="badge bg-{{ colores[r.estado] }}">{{ r.estado|capitalize }}</span>
+        {% if r.mensaje %}<br><small class="text-muted">{{ r.mensaje }}</small>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

@@ -1,12 +1,18 @@
+import io
+import zipfile
+from xml.etree.ElementTree import ParseError
+
 from flask import (render_template, request, redirect, url_for, flash,
                    send_from_directory, current_app)
 from sqlalchemy.exc import IntegrityError
+from werkzeug.datastructures import FileStorage
 
 from . import bp
 from ...extensions import db
 from ...models import Proveedor, Factura, Documento
 from ...services.archivos import guardar_archivo
-from ...utils import a_pesos, a_fecha
+from ...services.dian import parsear_xml, extraer_paquetes
+from ...utils import a_pesos, a_fecha, nit_base, normalizar
 
 
 @bp.route("/")
@@ -132,3 +138,91 @@ def documento(id):
     doc = db.get_or_404(Documento, id)
     return send_from_directory(current_app.config["UPLOAD_FOLDER"], doc.ruta,
                                download_name=doc.nombre_original)
+
+
+@bp.route("/importar", methods=["GET", "POST"])
+def importar():
+    resultados = []
+    if request.method == "POST":
+        etiqueta = request.form.get("etiqueta", "").strip() or None
+        paquetes = []
+        for archivo in request.files.getlist("archivos"):
+            if not archivo or not archivo.filename:
+                continue
+            try:
+                paquetes += extraer_paquetes(archivo.filename, archivo.read())
+            except zipfile.BadZipFile:
+                resultados.append({"estado": "error", "origen": archivo.filename,
+                                   "mensaje": "El ZIP está dañado", "datos": None, "factura": None})
+
+        for paquete in paquetes:
+            resultados.append(_importar_paquete(paquete, etiqueta))
+
+        if not resultados:
+            flash("No se encontró ningún XML de factura en lo que subiste.", "warning")
+
+    return render_template("deudas/importar.html", resultados=resultados)
+
+
+def _buscar_proveedor(nit, nombre):
+    for p in Proveedor.query.all():
+        if nit and nit_base(p.nit) == nit_base(nit):
+            return p
+        if nombre and normalizar(p.nombre) == normalizar(nombre):
+            return p
+    return None
+
+
+def _importar_paquete(paquete, etiqueta):
+    xml_nombre, xml_bytes = paquete["xml"]
+    r = {"origen": paquete["origen"], "estado": "error", "mensaje": "", "datos": None, "factura": None}
+
+    try:
+        datos = parsear_xml(xml_bytes)
+    except (ValueError, TypeError, ParseError) as e:
+        r["mensaje"] = f"No se pudo leer {xml_nombre}: {e}"
+        return r
+    r["datos"] = datos
+
+    if Factura.query.filter_by(cufe=datos["cufe"]).first():
+        r.update(estado="duplicada", mensaje="Ya estaba registrada (mismo CUFE)")
+        return r
+
+    proveedor = _buscar_proveedor(datos["proveedor_nit"], datos["proveedor_nombre"])
+    proveedor_nuevo = proveedor is None
+    if proveedor_nuevo:
+        proveedor = Proveedor(nombre=datos["proveedor_nombre"], nit=datos["proveedor_nit"])
+        db.session.add(proveedor)
+    elif Factura.query.filter_by(proveedor_id=proveedor.id, numero=datos["numero"]).first():
+        r.update(estado="duplicada", mensaje="Ya se había cargado a mano (mismo número)")
+        return r
+
+    factura = Factura(
+        proveedor=proveedor,
+        numero=datos["numero"],
+        fecha_emision=datos["fecha_emision"],
+        fecha_vencimiento=datos["fecha_vencimiento"],
+        subtotal=datos["subtotal"],
+        iva=datos["iva"],
+        total=datos["total"],
+        cufe=datos["cufe"],
+        etiqueta=etiqueta,
+        notas=f"Importada desde XML DIAN. Forma de pago: {datos['forma_pago']}.",
+    )
+    db.session.add(factura)
+    try:
+        db.session.flush()
+    except IntegrityError:
+        db.session.rollback()
+        r["mensaje"] = "Conflicto al guardar (posible duplicado)"
+        return r
+
+    for nombre, contenido in [paquete["xml"]] + paquete["pdfs"]:
+        archivo = FileStorage(stream=io.BytesIO(contenido), filename=nombre)
+        ruta, tipo = guardar_archivo(archivo, "facturas")
+        factura.documentos.append(Documento(nombre_original=nombre, ruta=ruta, tipo=tipo))
+
+    db.session.commit()
+    r.update(estado="importada", factura=factura,
+             mensaje="Proveedor creado automáticamente" if proveedor_nuevo else "")
+    return r
