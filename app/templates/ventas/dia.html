@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block content %}
+{% set dias_semana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'] %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="d-flex align-items-center gap-2">
+    <a href="{{ url_for('ventas.dia', fecha=anterior) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-left"></i></a>
+    <h2 class="mb-0">{{ dias_semana[fecha_venta.weekday()] }} {{ fecha_venta.strftime('%d/%m/%Y') }}</h2>
+    <a href="{{ url_for('ventas.dia', fecha=siguiente) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-right"></i></a>
+    <input type="date" class="form-control form-control-sm ms-2" style="width:auto" value="{{ fecha_venta.isoformat() }}"
+           onchange="location.href='{{ url_for('ventas.dia', fecha='FECHA') }}'.replace('FECHA', this.value)">
+  </div>
+  <a href="{{ url_for('ventas.index', mes=fecha_venta.strftime('%Y-%m')) }}" class="btn btn-link">Ver el mes</a>
+</div>
+
+{% if registros %}
+<div class="card card-body shadow-sm mb-4">
+  <h6>Registrado este día</h6>
+  <table class="table table-sm align-middle mb-0">
+    <thead><tr><th>Canal</th><th>Vendedora</th><th>Medio</th><th>Tipo</th><th class="text-end">Prendas</th><th class="text-end">Valor</th><th></th></tr></thead>
+    <tbody>
+      {% for v in registros %}
+      <tr class="{{ 'table-danger' if v.es_devolucion }}">
+        <td>{{ v.canal }}</td>
+        <td>{{ v.vendedora.nombre if v.vendedora else '—' }}</td>
+        <td>{{ v.medio_pago }}</td>
+        <td>{{ 'Devolución' if v.es_devolucion else 'Venta' }}</td>
+        <td class="text-end">{{ v.prendas or '—' }}</td>
+        <td class="text-end">{{ v.neto|pesos if not v.es_devolucion else '-' ~ v.valor|pesos }}</td>
+        <td>
+          <form method="post" action="{{ url_for('ventas.eliminar', id=v.id) }}" onsubmit="return confirm('¿Eliminar este registro?')">
+            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot><tr class="table-light"><th colspan="5" class="text-end">Neto del día</th><th class="text-end">{{ total|pesos }}</th><th></th></tr></tfoot>
+  </table>
+</div>
+{% endif %}
+
+<form method="post" class="card card-body shadow-sm">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h6 class="mb-0">Agregar registros</h6>
+    <span>Total a guardar: <strong id="totalNuevo">$0</strong></span>
+  </div>
+  {% if not vendedoras %}
+  <div class="alert alert-info py-2">No hay vendedoras activas. <a href="{{ url_for('ventas.vendedoras') }}">Créalas aquí</a> o registra sin vendedora.</div>
+  {% endif %}
+  <table class="table table-sm align-middle">
+    <thead><tr><th>Canal</th><th>Vendedora</th><th>Medio</th><th>Tipo</th><th style="width:170px">Valor</th><th style="width:100px">Prendas</th><th></th></tr></thead>
+    <tbody id="filas"></tbody>
+  </table>
+  <div>
+    <button type="button" id="agregarFila" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plus"></i> Agregar fila</button>
+    <button class="btn btn-primary btn-sm"><i class="bi bi-save"></i> Guardar</button>
+  </div>
+</form>
+
+<template id="plantillaFila">
+  <tr>
+    <td><select name="canal" class="form-select form-select-sm">{% for c in canales %}<option>{{ c }}</option>{% endfor %}</select></td>
+    <td><select name="vendedora_id" class="form-select form-select-sm">
+      <option value="">— Sin vendedora —</option>
+      {% for v in vendedoras %}<option value="{{ v.id }}">{{ v.nombre }}</option>{% endfor %}
+    </select></td>
+    <td><select name="medio_pago" class="form-select form-select-sm">{% for m in medios %}<option>{{ m }}</option>{% endfor %}</select></td>
+    <td><select name="tipo" class="form-select form-select-sm">
+      <option value="venta">Venta</option><option value="devolucion">Devolución</option>
+    </select></td>
+    <td><input name="valor" class="form-control form-control-sm" inputmode="numeric"></td>
+    <td><input name="prendas" type="number" min="0" class="form-control form-control-sm"></td>
+    <td><button type="button" class="btn btn-sm btn-outline-secondary quitar"><i class="bi bi-x"></i></button></td>
+  </tr>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const filas = document.getElementById('filas');
+  const plantilla = document.getElementById('plantillaFila');
+  const totalNuevo = document.getElementById('totalNuevo');
+
+  function agregarFila() {
+    filas.appendChild(plantilla.content.cloneNode(true));
+  }
+
+  function actualizarTotal() {
+    let total = 0;
+    filas.querySelectorAll('tr').forEach(tr => {
+      const texto = tr.querySelector('[name=valor]').value.split(',')[0];
+      const valor = parseInt(texto.replace(/\D/g, '')) || 0;
+      total += tr.querySelector('[name=tipo]').value === 'devolucion' ? -valor : valor;
+    });
+    totalNuevo.textContent = (total < 0 ? '-$' : '$') + Math.abs(total).toLocaleString('es-CO');
+  }
+
+  document.getElementById('agregarFila').addEventListener('click', agregarFila);
+  filas.addEventListener('click', e => {
+    if (e.target.closest('.quitar')) {
+      e.target.closest('tr').remove();
+      actualizarTotal();
+    }
+  });
+  filas.addEventListener('input', actualizarTotal);
+  filas.addEventListener('change', actualizarTotal);
+
+  for (let i = 0; i < 3; i++) agregarFila();
+</script>
+{% endblock %}

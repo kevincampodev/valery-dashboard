@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block content %}
+{% set dias_semana = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div class="d-flex align-items-center gap-2">
+    <a href="{{ url_for('ventas.index', mes=anterior) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-left"></i></a>
+    <h2 class="mb-0">Ventas · {{ titulo }}</h2>
+    <a href="{{ url_for('ventas.index', mes=siguiente) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-right"></i></a>
+  </div>
+  <div>
+    <a href="{{ url_for('ventas.vendedoras') }}" class="btn btn-outline-secondary"><i class="bi bi-person-badge"></i> Vendedoras</a>
+    <a href="{{ url_for('ventas.dia', fecha=hoy.isoformat()) }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Registrar ventas de hoy</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card card-body border-start border-4 border-success shadow-sm">
+      <small class="text-muted">Ventas netas del mes</small>
+      <h4 class="text-success mb-0">{{ r.total|pesos }}</h4>
+      <small class="text-muted">Devoluciones: {{ r.devoluciones|pesos }}</small>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card card-body border-start border-4 border-primary shadow-sm">
+      <small class="text-muted">Promedio por día</small>
+      <h4 class="text-primary mb-0">{{ r.promedio_diario|pesos }}</h4>
+      <small class="text-muted">{{ r.dias_registrados }} días registrados</small>
+    </div>
+  </div>
+  {% for c in canales %}
+  <div class="col-md-3">
+    <div class="card card-body border-start border-4 border-info shadow-sm">
+      <small class="text-muted">{{ c }}</small>
+      <h4 class="mb-0">{{ r.por_canal.get(c, 0)|pesos }}</h4>
+      <small class="text-muted">
+        {% if r.total %}{{ (r.por_canal.get(c, 0) * 100 / r.total)|round|int }}% del total{% else %}&nbsp;{% endif %}
+      </small>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card card-body shadow-sm mb-4">
+  <h6>Ventas por día</h6>
+  <div style="height:260px"><canvas id="grafVentas"></canvas></div>
+</div>
+
+<div class="row g-3 mb-4">
+  {% for titulo_tabla, datos in [('Por vendedora', r.por_vendedora), ('Por medio de pago', r.por_medio)] %}
+  <div class="col-md-6">
+    <div class="card card-body shadow-sm h-100">
+      <h6>{{ titulo_tabla }}</h6>
+      <table class="table table-sm mb-0">
+        {% for nombre, valor in datos.items() %}
+        <tr><td>{{ nombre }}</td><td class="text-end fw-bold">{{ valor|pesos }}</td></tr>
+        {% else %}
+        <tr><td class="text-muted">Sin datos este mes.</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card card-body shadow-sm">
+  <h6>Detalle diario</h6>
+  <div class="table-responsive">
+  <table class="table table-sm table-hover align-middle mb-0">
+    <thead class="table-light">
+      <tr><th>Día</th>{% for c in canales %}<th class="text-end">{{ c }}</th>{% endfor %}<th class="text-end">Devoluciones</th><th class="text-end">Neto</th></tr>
+    </thead>
+    <tbody>
+      {% for fecha, d in r.por_dia.items() %}
+      <tr onclick="location.href='{{ url_for('ventas.dia', fecha=fecha.isoformat()) }}'" style="cursor:pointer"
+          class="{{ 'text-muted' if not d.neto and not d.devoluciones }}">
+        <td>{{ dias_semana[fecha.weekday()] }} {{ fecha.strftime('%d/%m') }}</td>
+        {% for c in canales %}<td class="text-end">{{ d.canales.get(c, 0)|pesos if d.canales.get(c) else '—' }}</td>{% endfor %}
+        <td class="text-end text-danger">{{ ('-' ~ d.devoluciones|pesos) if d.devoluciones else '—' }}</td>
+        <td class="text-end fw-bold">{{ d.neto|pesos if d.neto else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const grafica = {{ grafica|tojson }};
+  const colores = { 'Minorista': '#0d6efd', 'Mayorista': '#20c997' };
+  new Chart(document.getElementById('grafVentas'), {
+    type: 'bar',
+    data: {
+      labels: grafica.etiquetas,
+      datasets: Object.entries(grafica.series).map(([canal, valores]) => ({
+        label: canal, data: valores, backgroundColor: colores[canal] || '#6c757d',
+      })),
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: { tooltip: { callbacks: { label: c => c.dataset.label + ': $' + c.raw.toLocaleString('es-CO') } } },
+      scales: {
+        x: { stacked: true },
+        y: { stacked: true, ticks: { callback: v => '$' + (v / 1e6).toLocaleString('es-CO') + 'M' } },
+      },
+    },
+  });
+</script>
+{% endblock %}

@@ -23,9 +23,11 @@ def create_app(config_class=Config):
     from .blueprints.dashboard import bp as dashboard_bp
     from .blueprints.deudas import bp as deudas_bp
     from .blueprints.abonos import bp as abonos_bp
+    from .blueprints.ventas import bp as ventas_bp
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(deudas_bp)
     app.register_blueprint(abonos_bp)
+    app.register_blueprint(ventas_bp)
 
     app.add_template_filter(formato_pesos, "pesos")
 

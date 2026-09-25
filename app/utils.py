@@ -1,5 +1,9 @@
+import calendar
 import re
 from datetime import date
+
+MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+         "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
 
 
 def a_pesos(texto):
@@ -26,3 +30,21 @@ def normalizar(texto):
 
 def formato_pesos(valor):
     return "$" + f"{int(valor or 0):,}".replace(",", ".")
+
+
+def mes_desde_texto(texto):
+    """'2026-09' -> date(2026, 9, 1). Si viene vacío o inválido, el mes actual."""
+    try:
+        return date.fromisoformat(f"{texto}-01")
+    except (TypeError, ValueError):
+        return date.today().replace(day=1)
+
+
+def rango_mes(inicio):
+    """date(2026, 9, 1) -> (date(2026, 9, 1), date(2026, 9, 30))"""
+    ultimo = calendar.monthrange(inicio.year, inicio.month)[1]
+    return inicio, inicio.replace(day=ultimo)
+
+
+def nombre_mes(fecha):
+    return f"{MESES[fecha.month - 1].capitalize()} {fecha.year}"
