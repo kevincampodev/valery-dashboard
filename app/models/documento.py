@@ -13,3 +13,6 @@ class Documento(db.Model):
 
     factura_id = db.Column(db.Integer, db.ForeignKey("facturas.id"))
     factura = db.relationship("Factura", back_populates="documentos")
+
+    pago_id = db.Column(db.Integer, db.ForeignKey("pagos.id"))
+    pago = db.relationship("Pago", back_populates="documentos")

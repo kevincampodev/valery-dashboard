@@ -12,6 +12,7 @@ from ...extensions import db
 from ...models import Proveedor, Factura, Documento
 from ...services.archivos import guardar_archivo
 from ...services.dian import parsear_xml, extraer_paquetes
+from ...services.cartera import cartera_por_edades, RANGOS
 from ...utils import a_pesos, a_fecha, nit_base, normalizar
 
 
@@ -226,3 +227,9 @@ def _importar_paquete(paquete, etiqueta):
     r.update(estado="importada", factura=factura,
              mensaje="Proveedor creado automáticamente" if proveedor_nuevo else "")
     return r
+
+
+@bp.route("/cartera")
+def cartera():
+    filas, totales = cartera_por_edades(Factura.query.all())
+    return render_template("deudas/cartera.html", filas=filas, totales=totales, rangos=RANGOS)

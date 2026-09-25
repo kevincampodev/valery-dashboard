@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge_estado %}
+{% block content %}
+<h2 class="mb-3">Registrar abono</h2>
+
+<form method="get" class="row g-2 mb-3">
+  <div class="col-md-5">
+    <label class="form-label">Proveedor</label>
+    <select name="proveedor" class="form-select" onchange="this.form.submit()">
+      <option value="">Selecciona...</option>
+      {% for p in proveedores %}
+      <option value="{{ p.id }}" {% if proveedor and p.id == proveedor.id %}selected{% endif %}>{{ p.nombre }} — debe {{ p.deuda_total|pesos }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</form>
+
+{% if proveedor %}
+  {% if not pendientes %}
+  <div class="alert alert-success">{{ proveedor.nombre }} no tiene facturas con saldo pendiente.</div>
+  {% else %}
+  <form method="post" enctype="multipart/form-data" class="card card-body">
+    <input type="hidden" name="proveedor" value="{{ proveedor.id }}">
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label">Fecha *</label>
+        <input type="date" name="fecha" class="form-control" value="{{ form.get('fecha', hoy) }}" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Valor del abono *</label>
+        <input name="valor" class="form-control" value="{{ form.get('valor', '') }}" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Medio *</label>
+        <select name="medio" class="form-select" required>
+          {% for m in medios %}
+          <option {% if form.get('medio') == m %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Referencia</label>
+        <input name="referencia" class="form-control" value="{{ form.get('referencia', '') }}" placeholder="N° transacción">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Comprobantes</label>
+        <input type="file" name="comprobantes" class="form-control" multiple>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Notas</label>
+        <input name="notas" class="form-control" value="{{ form.get('notas', '') }}">
+      </div>
+    </div>
+
+    <h5 class="mt-4">¿A qué facturas va?</h5>
+    <p class="text-muted small mb-2">Deja todo vacío para repartir automáticamente empezando por la más antigua, o escribe cuánto va a cada una.</p>
+    <table class="table table-sm align-middle">
+      <thead class="table-light"><tr><th>Factura</th><th>Fecha límite</th><th>Estado</th><th class="text-end">Saldo</th><th style="width:180px">Aplicar</th></tr></thead>
+      <tbody>
+        {% for f in pendientes %}
+        <tr>
+          <td>{{ f.numero }}</td>
+          <td>{{ f.fecha_limite.strftime('%d/%m/%Y') }}</td>
+          <td>{{ badge_estado(f.estado) }}</td>
+          <td class="text-end">{{ f.saldo|pesos }}</td>
+          <td><input name="aplicar_{{ f.id }}" class="form-control form-control-sm" value="{{ form.get('aplicar_' ~ f.id, '') }}"></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div>
+      <button class="btn btn-primary"><i class="bi bi-save"></i> Guardar abono</button>
+      <a href="{{ url_for('abonos.index') }}" class="btn btn-link">Cancelar</a>
+    </div>
+  </form>
+  {% endif %}
+{% endif %}
+{% endblock %}

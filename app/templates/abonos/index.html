@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Abonos a proveedores</h2>
+  <a href="{{ url_for('abonos.nuevo', proveedor=proveedor_id) }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Registrar abono</a>
+</div>
+
+<form method="get" class="row g-2 mb-3">
+  <div class="col-md-4">
+    <select name="proveedor" class="form-select" onchange="this.form.submit()">
+      <option value="">Todos los proveedores</option>
+      {% for p in proveedores %}
+      <option value="{{ p.id }}" {% if p.id == proveedor_id %}selected{% endif %}>{{ p.nombre }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</form>
+
+<div class="table-responsive">
+<table class="table align-middle">
+  <thead class="table-light">
+    <tr><th>Fecha</th><th>Proveedor</th><th class="text-end">Valor</th><th>Medio</th><th>Aplicado a</th><th>Comprobantes</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for p in pagos %}
+    <tr>
+      <td>{{ p.fecha.strftime('%d/%m/%Y') }}</td>
+      <td>{{ p.proveedor.nombre }}</td>
+      <td class="text-end fw-bold">{{ p.valor|pesos }}</td>
+      <td>{{ p.medio }}{% if p.referencia %}<br><small class="text-muted">{{ p.referencia }}</small>{% endif %}</td>
+      <td class="small">
+        {% for a in p.aplicaciones %}
+        <a href="{{ url_for('deudas.detalle', id=a.factura_id) }}">{{ a.factura.numero }}</a>: {{ a.valor|pesos }}<br>
+        {% endfor %}
+        {% if p.sin_aplicar %}<span class="badge bg-warning text-dark">Sin aplicar: {{ p.sin_aplicar|pesos }}</span>{% endif %}
+      </td>
+      <td>
+        {% for d in p.documentos %}
+        <a href="{{ url_for('deudas.documento', id=d.id) }}" target="_blank" title="{{ d.nombre_original }}"><i class="bi bi-paperclip"></i></a>
+        {% else %}<span class="text-muted small">—</span>{% endfor %}
+      </td>
+      <td>
+        <form method="post" action="{{ url_for('abonos.eliminar', id=p.id) }}"
+              onsubmit="return confirm('¿Eliminar este abono de {{ p.valor|pesos }}? Los saldos de las facturas volverán a subir.')">
+          <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="text-center text-muted py-4">No hay abonos registrados.</td></tr>
+    {% endfor %}
+  </tbody>
+  <tfoot><tr class="table-light">
+    <th colspan="2" class="text-end">Total abonado</th><th class="text-end">{{ total|pesos }}</th><th colspan="4"></th>
+  </tr></tfoot>
+</table>
+</div>
+{% endblock %}
