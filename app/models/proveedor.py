@@ -16,6 +16,7 @@ class Proveedor(db.Model):
 
     facturas = db.relationship("Factura", back_populates="proveedor",
                                order_by="Factura.fecha_emision")
+    pagos = db.relationship("Pago", back_populates="proveedor")
 
     @property
     def deuda_total(self):

@@ -22,3 +22,7 @@ def nit_base(nit):
 def normalizar(texto):
     """'LAZCHAV S.A.S' -> 'lazchavsas'"""
     return re.sub(r"[^a-z0-9]", "", (texto or "").lower())
+
+
+def formato_pesos(valor):
+    return "$" + f"{int(valor or 0):,}".replace(",", ".")

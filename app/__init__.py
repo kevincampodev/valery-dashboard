@@ -2,6 +2,7 @@ import os
 from flask import Flask
 from config import Config
 from .extensions import db, migrate
+from .utils import formato_pesos
 
 
 def create_app(config_class=Config):
@@ -21,11 +22,11 @@ def create_app(config_class=Config):
 
     from .blueprints.dashboard import bp as dashboard_bp
     from .blueprints.deudas import bp as deudas_bp
+    from .blueprints.abonos import bp as abonos_bp
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(deudas_bp)
+    app.register_blueprint(abonos_bp)
 
-    @app.template_filter("pesos")
-    def pesos(valor):
-        return "$" + f"{int(valor or 0):,}".replace(",", ".")
+    app.add_template_filter(formato_pesos, "pesos")
 
     return app

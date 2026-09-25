@@ -5,6 +5,7 @@
   <h2>Deudas</h2>
   <div>
     <a href="{{ url_for('deudas.proveedores') }}" class="btn btn-outline-secondary"><i class="bi bi-building"></i> Proveedores</a>
+    <a href="{{ url_for('deudas.cartera') }}" class="btn btn-outline-secondary"><i class="bi bi-hourglass-split"></i> Cartera por edades</a>
     <a href="{{ url_for('deudas.importar') }}" class="btn btn-outline-primary"><i class="bi bi-file-earmark-zip"></i> Importar DIAN</a>
     <a href="{{ url_for('deudas.formulario') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nueva factura</a>
   </div>
@@ -46,7 +47,13 @@
         {% if f.saldo and f.dias_para_vencer < 0 %}<br><small class="text-danger">{{ -f.dias_para_vencer }} días vencida</small>{% endif %}
       </td>
       <td class="text-end">{{ f.total|pesos }}</td>
-      <td class="text-end fw-bold">{{ f.saldo|pesos }}</td>
+      <td class="text-end fw-bold">{{ f.saldo|pesos }}
+        {% if f.abonado and f.saldo %}
+        <div class="progress mt-1" style="height:4px" title="{{ f.porcentaje_pagado }}% pagado">
+          <div class="progress-bar bg-success" style="width: {{ f.porcentaje_pagado }}%"></div>
+        </div>
+        {% endif %}
+      </td>
       <td>{{ badge_estado(f.estado) }}</td>
     </tr>
     {% else %}

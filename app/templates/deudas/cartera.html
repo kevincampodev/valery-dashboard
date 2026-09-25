@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Cartera por edades</h2>
+  <a href="{{ url_for('deudas.index') }}" class="btn btn-link">Volver a deudas</a>
+</div>
+<p class="text-muted">Saldo pendiente por proveedor según los días que lleva vencido (con base en la fecha pactada, o la de la factura si no hay pactada).</p>
+
+{% set colores = {'Al día': 'success', '1-30': 'warning', '31-60': 'orange', '61-90': 'danger', '+90': 'dark'} %}
+<div class="table-responsive">
+<table class="table align-middle">
+  <thead>
+    <tr>
+      <th>Proveedor</th>
+      {% for r in rangos %}<th class="text-end text-{{ colores[r] if colores[r] != 'orange' else 'danger' }}">{{ r }}</th>{% endfor %}
+      <th class="text-end">Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for nombre, fila in filas.items() %}
+    <tr>
+      <td>{{ nombre }}</td>
+      {% for r in rangos %}<td class="text-end">{{ fila[r]|pesos if fila[r] else '—' }}</td>{% endfor %}
+      <td class="text-end fw-bold">{{ fila['Total']|pesos }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="text-center text-muted py-4">No hay saldos pendientes. 🎉</td></tr>
+    {% endfor %}
+  </tbody>
+  <tfoot class="table-light">
+    <tr>
+      <th>Total</th>
+      {% for r in rangos %}<th class="text-end">{{ totales[r]|pesos }}</th>{% endfor %}
+      <th class="text-end text-danger">{{ totales['Total']|pesos }}</th>
+    </tr>
+  </tfoot>
+</table>
+</div>
+{% endblock %}

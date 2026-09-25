@@ -20,3 +20,9 @@ def guardar_archivo(archivo, subcarpeta):
     nombre_guardado = f"{uuid.uuid4().hex}.{ext}"
     archivo.save(os.path.join(carpeta, nombre_guardado))
     return f"{subcarpeta}/{nombre_guardado}", ext
+
+
+def borrar_archivo(ruta):
+    completa = os.path.join(current_app.config["UPLOAD_FOLDER"], ruta)
+    if os.path.exists(completa):
+        os.remove(completa)

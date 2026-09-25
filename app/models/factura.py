@@ -26,15 +26,25 @@ class Factura(db.Model):
     proveedor = db.relationship("Proveedor", back_populates="facturas")
     documentos = db.relationship("Documento", back_populates="factura",
                                  cascade="all, delete-orphan")
+    aplicaciones = db.relationship("AplicacionPago", back_populates="factura")
 
     @property
     def fecha_limite(self):
         return self.fecha_pactada or self.fecha_vencimiento
 
     @property
+    def abonado(self):
+        return sum(a.valor for a in self.aplicaciones)
+
+    @property
     def saldo(self):
-        # En la Fase 3 aquí restaremos los abonos
-        return 0 if self.pagada_contado else self.total
+        return 0 if self.pagada_contado else self.total - self.abonado
+
+    @property
+    def porcentaje_pagado(self):
+        if self.saldo == 0:
+            return 100
+        return round(self.abonado * 100 / self.total)
 
     @property
     def dias_para_vencer(self):
