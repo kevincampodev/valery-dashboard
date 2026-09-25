@@ -1,20 +1,136 @@
 {% extends "base.html" %}
+{% from "_macros.html" import badge_estado %}
 {% block content %}
-<h2 class="mb-4">Resumen general</h2>
-<div class="row g-3">
-  {% for titulo, valor, color in [
-    ('Deuda total', 0, 'danger'),
-    ('Vence esta semana', 0, 'warning'),
-    ('Ventas del mes', 0, 'success'),
-    ('Comisiones por pagar', 0, 'primary')] %}
-  <div class="col-md-3">
-    <div class="card border-{{ color }}">
-      <div class="card-body">
-        <small class="text-muted">{{ titulo }}</small>
-        <h4 class="text-{{ color }}">{{ valor|pesos }}</h4>
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2>Resumen general</h2>
+  <span class="text-muted">{{ hoy.strftime('%d/%m/%Y') }}</span>
+</div>
+
+{% set tarjetas = [
+  ('Deuda total', resumen.deuda_total, 'con proveedores', 'primary', 'bi-receipt', url_for('deudas.index')),
+  ('Vencido', resumen.vencido, resumen.n_vencidas ~ ' facturas', 'danger', 'bi-exclamation-triangle', url_for('deudas.index', estado='vencida')),
+  ('Vence en 7 días', resumen.por_vencer, resumen.n_por_vencer ~ ' facturas', 'warning', 'bi-calendar-event', url_for('deudas.index', estado='por vencer')),
+  ('Abonado este mes', abonado_mes, n_abonos_mes ~ ' abonos', 'success', 'bi-cash-coin', url_for('abonos.index')),
+] %}
+<div class="row g-3 mb-4">
+  {% for titulo, valor, detalle, color, icono, url in tarjetas %}
+  <div class="col-md-6 col-xl-3">
+    <a href="{{ url }}" class="text-decoration-none">
+      <div class="card border-start border-4 border-{{ color }} h-100 shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between">
+            <small class="text-muted">{{ titulo }}</small>
+            <i class="bi {{ icono }} text-{{ color }} fs-5"></i>
+          </div>
+          <h4 class="text-{{ color }} mb-0">{{ valor|pesos }}</h4>
+          <small class="text-muted">{{ detalle }}</small>
+        </div>
       </div>
-    </div>
+    </a>
   </div>
   {% endfor %}
 </div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-7">
+    <div class="card card-body shadow-sm h-100">
+      <h6>Vencimientos por semana</h6>
+      <div style="height:280px"><canvas id="grafSemanas"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card card-body shadow-sm h-100">
+      <h6>Deuda por proveedor</h6>
+      <div style="height:280px"><canvas id="grafProveedores"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card card-body shadow-sm h-100">
+      <h6>Urgente: vencidas y por vencer</h6>
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead><tr><th>Proveedor</th><th>Factura</th><th>Fecha límite</th><th class="text-end">Saldo</th><th>Estado</th></tr></thead>
+        <tbody>
+          {% for f in resumen.urgentes[:10] %}
+          <tr onclick="location.href='{{ url_for('deudas.detalle', id=f.id) }}'" style="cursor:pointer">
+            <td>{{ f.proveedor.nombre }}</td>
+            <td>{{ f.numero }}</td>
+            <td>{{ f.fecha_limite.strftime('%d/%m/%Y') }}
+              <br><small class="text-{{ 'danger' if f.dias_para_vencer < 0 else 'muted' }}">
+                {% if f.dias_para_vencer < 0 %}hace {{ -f.dias_para_vencer }} días
+                {% elif f.dias_para_vencer == 0 %}hoy
+                {% else %}en {{ f.dias_para_vencer }} días{% endif %}
+              </small>
+            </td>
+            <td class="text-end fw-bold">{{ f.saldo|pesos }}</td>
+            <td>{{ badge_estado(f.estado) }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="text-center text-muted py-3">Nada urgente. 👌</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if resumen.urgentes|length > 10 %}
+      <a href="{{ url_for('deudas.index') }}" class="small mt-2">Ver las {{ resumen.urgentes|length }} →</a>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card card-body shadow-sm h-100">
+      <h6>Últimos abonos</h6>
+      <ul class="list-group list-group-flush">
+        {% for p in ultimos_abonos %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span>{{ p.proveedor.nombre }}<br><small class="text-muted">{{ p.fecha.strftime('%d/%m/%Y') }} · {{ p.medio }}</small></span>
+          <span class="fw-bold text-success">{{ p.valor|pesos }}</span>
+        </li>
+        {% else %}
+        <li class="list-group-item text-muted">Aún no hay abonos.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const pesos = v => '$' + Math.round(v).toLocaleString('es-CO');
+  const millones = v => '$' + (v / 1e6).toLocaleString('es-CO', { maximumFractionDigits: 1 }) + 'M';
+  const tooltipPesos = { callbacks: { label: c => pesos(c.raw) } };
+
+  const semanas = {{ grafica_semanas|tojson }};
+  new Chart(document.getElementById('grafSemanas'), {
+    type: 'bar',
+    data: {
+      labels: semanas.etiquetas,
+      datasets: [{
+        data: semanas.valores,
+        backgroundColor: semanas.etiquetas.map((_, i) => i === 0 ? '#dc3545' : '#0d6efd'),
+      }],
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: tooltipPesos },
+      scales: { y: { ticks: { callback: millones } } },
+    },
+  });
+
+  const proveedores = {{ grafica_proveedores|tojson }};
+  new Chart(document.getElementById('grafProveedores'), {
+    type: 'bar',
+    data: {
+      labels: proveedores.nombres,
+      datasets: [{ data: proveedores.valores, backgroundColor: '#6f42c1' }],
+    },
+    options: {
+      indexAxis: 'y',
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: tooltipPesos },
+      scales: { x: { ticks: { callback: millones } } },
+    },
+  });
+</script>
 {% endblock %}
