@@ -31,6 +31,25 @@
   {% endfor %}
 </div>
 
+<a href="{{ url_for('metas.index') }}" class="text-decoration-none text-reset">
+  <div class="card card-body shadow-sm mb-4">
+    {% if avance_mes %}
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span><i class="bi bi-bullseye"></i> <strong>Ventas del mes:</strong> {{ avance_mes.vendido|pesos }} de {{ avance_mes.meta|pesos }} ({{ avance_mes.porcentaje }}%)</span>
+      <span class="small text-muted">
+        {% if avance_mes.faltante and avance_mes.dias_restantes %}Hay que vender {{ avance_mes.ritmo_necesario|pesos }}/día · {% endif %}
+        Proyección: {{ avance_mes.proyeccion|pesos }}
+      </span>
+    </div>
+    <div class="progress" style="height:10px">
+      <div class="progress-bar {{ 'bg-success' if avance_mes.porcentaje >= 100 else 'bg-primary' }}" style="width: {{ [avance_mes.porcentaje, 100]|min }}%"></div>
+    </div>
+    {% else %}
+    <span><i class="bi bi-bullseye"></i> <strong>Ventas del mes:</strong> {{ vendido_mes|pesos }} · <span class="text-muted">Sin meta definida — clic para configurarla</span></span>
+    {% endif %}
+  </div>
+</a>
+
 <div class="row g-3 mb-4">
   <div class="col-lg-7">
     <div class="card card-body shadow-sm h-100">

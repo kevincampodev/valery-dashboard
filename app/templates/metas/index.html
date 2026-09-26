@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block content %}
+{% set colores = {'cumplida': 'success', 'en camino': 'primary', 'en riesgo': 'warning', 'atrasada': 'danger',
+                  'no cumplida': 'dark', 'por iniciar': 'secondary'} %}
+
+<div class="d-flex align-items-center gap-2 mb-4">
+  <a href="{{ url_for('metas.index', mes=anterior) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-left"></i></a>
+  <h2 class="mb-0">Metas · {{ titulo }}</h2>
+  <a href="{{ url_for('metas.index', mes=siguiente) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-right"></i></a>
+  <button class="btn btn-outline-primary btn-sm ms-auto" data-bs-toggle="collapse" data-bs-target="#formMetas">
+    <i class="bi bi-pencil"></i> Configurar metas
+  </button>
+</div>
+
+<div class="collapse {{ 'show' if not metas }} mb-4" id="formMetas">
+  <form method="post" action="{{ url_for('metas.guardar_metas') }}" class="card card-body">
+    <input type="hidden" name="mes" value="{{ mes }}">
+    <div class="row g-2 align-items-end">
+      {% for g in grupos %}
+      <div class="col-md-3">
+        <label class="form-label">Meta {{ g }}</label>
+        <input name="meta_{{ g }}" class="form-control" value="{{ metas.get(g, '') }}" placeholder="Vacío = sin meta">
+      </div>
+      {% endfor %}
+      <div class="col-md-3"><button class="btn btn-primary w-100"><i class="bi bi-save"></i> Guardar</button></div>
+    </div>
+  </form>
+</div>
+
+<div class="row g-3 mb-4">
+  {% for g in grupos %}
+  <div class="col-lg-4">
+    <div class="card card-body shadow-sm h-100">
+      <div class="d-flex justify-content-between">
+        <h6>{{ g }}</h6>
+        {% if avances[g] %}<span class="badge bg-{{ colores[avances[g].estado] }}">{{ avances[g].estado|capitalize }}</span>{% endif %}
+      </div>
+      {% set a = avances.get(g) %}
+      {% if a %}
+      <h4 class="mb-1">{{ a.vendido|pesos }} <small class="text-muted fs-6">de {{ a.meta|pesos }}</small></h4>
+      <div class="progress mb-2" style="height:10px">
+        <div class="progress-bar bg-{{ colores[a.estado] }}" style="width: {{ [a.porcentaje, 100]|min }}%"></div>
+      </div>
+      <small class="text-muted mb-2">{{ a.porcentaje }}% cumplido</small>
+      <table class="table table-sm mb-0 small">
+        {% if a.faltante and a.dias_restantes %}
+        <tr><td>Falta</td><td class="text-end">{{ a.faltante|pesos }}</td></tr>
+        <tr><td>Hay que vender por día</td><td class="text-end fw-bold">{{ a.ritmo_necesario|pesos }}</td></tr>
+        <tr><td>Ritmo actual por día</td><td class="text-end">{{ a.ritmo_actual|pesos }}</td></tr>
+        <tr><td>Días restantes</td><td class="text-end">{{ a.dias_restantes }}</td></tr>
+        {% endif %}
+        <tr><td>Proyección de cierre</td><td class="text-end">{{ a.proyeccion|pesos }}</td></tr>
+      </table>
+      {% else %}
+      <p class="text-muted mb-0">Sin meta para este mes.</p>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-6">
+    <div class="card card-body shadow-sm h-100">
+      <h5><i class="bi bi-trophy"></i> Incentivo del administrador</h5>
+      {% if incentivo %}
+        <p class="mb-1">Cumplimiento de la meta total: <strong>{{ incentivo.cumplimiento }}%</strong></p>
+        {% if incentivo.tramo %}
+        <p class="mb-1">Tramo alcanzado: <strong>desde {{ incentivo.tramo.cumplimiento_min }}%</strong>
+          {% if incentivo.tramo.descripcion %}({{ incentivo.tramo.descripcion }}){% endif %}</p>
+        <h3 class="text-success">{{ incentivo.bono|pesos }}</h3>
+        {% else %}
+        <p class="text-muted">Aún no alcanza ningún tramo.</p>
+        {% endif %}
+        {% if incentivo.siguiente %}
+        <div class="alert alert-info py-2 small mb-0">
+          Faltan <strong>{{ incentivo.falta_siguiente|pesos }}</strong> en ventas para el tramo de {{ incentivo.siguiente.cumplimiento_min }}%.
+        </div>
+        {% endif %}
+      {% else %}
+        <p class="text-muted">Define la meta <strong>Total</strong> del mes para calcular el incentivo.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card card-body shadow-sm h-100">
+      <h6>Tramos configurados</h6>
+      <table class="table table-sm align-middle">
+        <thead><tr><th>Desde</th><th>Tasa</th><th>Bono fijo</th><th>Nota</th><th></th></tr></thead>
+        <tbody>
+          {% for t in tramos %}
+          <tr>
+            <td>{{ t.cumplimiento_min }}%</td>
+            <td>{{ t.tasa_bp|porcentaje }}</td>
+            <td>{{ t.bono_fijo|pesos if t.bono_fijo else '—' }}</td>
+            <td class="small">{{ t.descripcion or '' }}</td>
+            <td>
+              <form method="post" action="{{ url_for('metas.eliminar_tramo', id=t.id) }}" onsubmit="return confirm('¿Eliminar este tramo?')">
+                <input type="hidden" name="mes" value="{{ mes }}">
+                <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="text-muted">Sin tramos todavía.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <form method="post" action="{{ url_for('metas.agregar_tramo') }}" class="row g-2">
+        <input type="hidden" name="mes" value="{{ mes }}">
+        <div class="col-3"><input name="cumplimiento_min" type="number" class="form-control form-control-sm" placeholder="Desde %" required></div>
+        <div class="col-2"><input name="tasa" class="form-control form-control-sm" placeholder="Tasa %"></div>
+        <div class="col-3"><input name="bono_fijo" class="form-control form-control-sm" placeholder="Bono fijo"></div>
+        <div class="col-3"><input name="descripcion" class="form-control form-control-sm" placeholder="Nota"></div>
+        <div class="col-1"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-plus"></i></button></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="card card-body shadow-sm">
+  <h5><i class="bi bi-flag"></i> Objetivos</h5>
+  <div class="row g-3 mb-3">
+    {% for o in objetivos %}
+    <div class="col-md-6 col-xl-4">
+      <div class="border rounded p-3 h-100 {{ 'border-danger' if o.vencido }} {{ 'opacity-50' if o.completado }}">
+        <div class="d-flex justify-content-between">
+          <strong>{{ o.titulo }}</strong>
+          <form method="post" action="{{ url_for('metas.eliminar_objetivo', id=o.id) }}" onsubmit="return confirm('¿Eliminar objetivo?')">
+            <input type="hidden" name="mes" value="{{ mes }}">
+            <button class="btn btn-sm btn-link text-danger p-0"><i class="bi bi-x-lg"></i></button>
+          </form>
+        </div>
+        {% if o.descripcion %}<p class="small text-muted mb-1">{{ o.descripcion }}</p>{% endif %}
+        <small class="d-block mb-1">
+          {% if o.fecha_limite %}Límite: {{ o.fecha_limite.strftime('%d/%m/%Y') }}{% endif %}
+          {% if o.vencido %}<span class="badge bg-danger">Vencido</span>{% endif %}
+        </small>
+        {% if o.proveedor %}<small class="d-block text-muted mb-1">Ligado a la deuda de {{ o.proveedor.nombre }}: quedan {{ o.proveedor.deuda_total|pesos }}</small>{% endif %}
+        <div class="progress mb-2" style="height:8px"><div class="progress-bar bg-success" style="width: {{ o.progreso }}%"></div></div>
+        <form method="post" action="{{ url_for('metas.actualizar_objetivo', id=o.id) }}" class="d-flex gap-1">
+          <input type="hidden" name="mes" value="{{ mes }}">
+          {% if not o.proveedor and not o.completado %}
+          <input name="progreso" type="number" min="0" max="100" value="{{ o.progreso_manual }}" class="form-control form-control-sm" style="width:80px">
+          <button class="btn btn-sm btn-outline-secondary">%</button>
+          {% else %}
+          <span class="small me-auto">{{ o.progreso }}%</span>
+          {% endif %}
+          <button name="completar" class="btn btn-sm btn-outline-success ms-auto">{{ 'Reabrir' if o.completado else 'Completar' }}</button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <p class="text-muted">Aún no hay objetivos.</p>
+    {% endfor %}
+  </div>
+
+  <form method="post" action="{{ url_for('metas.crear_objetivo') }}" class="row g-2">
+    <input type="hidden" name="mes" value="{{ mes }}">
+    <div class="col-md-3"><input name="titulo" class="form-control form-control-sm" placeholder="Objetivo *" required></div>
+    <div class="col-md-3"><input name="descripcion" class="form-control form-control-sm" placeholder="Descripción"></div>
+    <div class="col-md-2"><input name="fecha_limite" type="date" class="form-control form-control-sm"></div>
+    <div class="col-md-3">
+      <select name="proveedor_id" class="form-select form-select-sm">
+        <option value="">Avance manual</option>
+        {% for p in proveedores %}<option value="{{ p.id }}">Pagar deuda de {{ p.nombre }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-1"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-plus"></i></button></div>
+  </form>
+</div>
+{% endblock %}

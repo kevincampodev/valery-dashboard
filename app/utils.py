@@ -1,6 +1,7 @@
 import calendar
 import re
 from datetime import date
+from decimal import Decimal, InvalidOperation
 
 MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
          "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
@@ -48,3 +49,16 @@ def rango_mes(inicio):
 
 def nombre_mes(fecha):
     return f"{MESES[fecha.month - 1].capitalize()} {fecha.year}"
+
+
+def a_bp(texto):
+    """'0,5' -> 50 puntos básicos | '1.25' -> 125"""
+    try:
+        return int((Decimal((texto or "0").replace(",", ".")) * 100).quantize(Decimal("1")))
+    except InvalidOperation:
+        return 0
+
+
+def formato_bp(bp):
+    """50 -> '0,5%' | 125 -> '1,25%' | 100 -> '1%'"""
+    return f"{(bp or 0) / 100:g}".replace(".", ",") + "%"
