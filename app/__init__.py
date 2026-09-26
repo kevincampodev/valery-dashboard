@@ -25,11 +25,13 @@ def create_app(config_class=Config):
     from .blueprints.abonos import bp as abonos_bp
     from .blueprints.ventas import bp as ventas_bp
     from .blueprints.metas import bp as metas_bp
+    from .blueprints.comisiones import bp as comisiones_bp
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(deudas_bp)
     app.register_blueprint(abonos_bp)
     app.register_blueprint(ventas_bp)
     app.register_blueprint(metas_bp)
+    app.register_blueprint(comisiones_bp)
 
     app.add_template_filter(formato_pesos, "pesos")
     app.add_template_filter(formato_bp, "porcentaje")

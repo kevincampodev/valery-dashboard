@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>{{ vendedora.nombre }} · Historial de comisiones</h2>
+  <a href="{{ url_for('comisiones.index') }}" class="btn btn-link">Volver</a>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4"><div class="card card-body shadow-sm">
+    <small class="text-muted">Pagado en {{ anio }}</small><h4 class="text-success mb-0">{{ pagado_anio|pesos }}</h4>
+  </div></div>
+  <div class="col-md-4"><div class="card card-body shadow-sm">
+    <small class="text-muted">Quincenas pagadas sin soporte</small>
+    <h4 class="{{ 'text-danger' if sin_soporte else 'text-success' }} mb-0">{{ sin_soporte }}</h4>
+  </div></div>
+</div>
+
+<table class="table align-middle">
+  <thead class="table-light"><tr><th>Quincena</th><th class="text-end">Ventas</th><th class="text-end">Total</th><th>Estado</th><th>Soporte</th></tr></thead>
+  <tbody>
+    {% for l in liquidaciones %}
+    <tr onclick="location.href='{{ url_for('comisiones.detalle', id=l.id) }}'" style="cursor:pointer">
+      <td>{{ etiqueta(l.inicio, l.fin) }}</td>
+      <td class="text-end">{{ l.ventas_netas|pesos }}</td>
+      <td class="text-end fw-bold">{{ l.total|pesos }}</td>
+      <td><span class="badge bg-{{ 'success' if l.estado == 'pagada' else 'primary' }}">{{ l.estado|capitalize }}</span></td>
+      <td>{% if l.tiene_soporte %}<i class="bi bi-file-check text-success"></i>{% elif l.estado == 'pagada' %}<i class="bi bi-exclamation-circle text-danger" title="Falta soporte"></i>{% else %}—{% endif %}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="text-center text-muted">Sin liquidaciones todavía.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

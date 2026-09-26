@@ -15,7 +15,13 @@ class Vendedora(db.Model):
     notas = db.Column(db.Text)
     creado_en = db.Column(db.DateTime, default=datetime.now)
 
+    # Esquema de comisión
+    tasa_comision_bp = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+    meta_quincenal = db.Column(db.Integer)
+    bono_meta = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+
     ventas = db.relationship("Venta", back_populates="vendedora")
+    liquidaciones = db.relationship("Liquidacion", back_populates="vendedora")
 
 
 class Venta(db.Model):

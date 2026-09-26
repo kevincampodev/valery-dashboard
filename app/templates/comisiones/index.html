@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4">
+  <a href="{{ url_for('comisiones.index', q=anterior) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-left"></i></a>
+  <h2 class="mb-0">Comisiones · {{ titulo }}</h2>
+  <a href="{{ url_for('comisiones.index', q=siguiente) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-right"></i></a>
+  <div class="ms-auto">
+    <a href="{{ url_for('comisiones.esquemas') }}" class="btn btn-outline-secondary"><i class="bi bi-sliders"></i> Esquemas</a>
+    <form method="post" action="{{ url_for('comisiones.liquidar') }}" class="d-inline">
+      <input type="hidden" name="q" value="{{ inicio.isoformat() }}">
+      <button class="btn btn-primary"><i class="bi bi-calculator"></i> Liquidar todas</button>
+    </form>
+  </div>
+</div>
+
+{% if not terminada %}
+<div class="alert alert-info py-2">Quincena en curso: los valores se actualizan con cada venta registrada.</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4"><div class="card card-body border-start border-4 border-primary shadow-sm">
+    <small class="text-muted">Comisiones calculadas</small>
+    <h4 class="mb-0">{{ filas|sum(attribute='calculo.total')|pesos }}</h4>
+  </div></div>
+  <div class="col-md-4"><div class="card card-body border-start border-4 border-warning shadow-sm">
+    <small class="text-muted">Liquidado por pagar</small>
+    <h4 class="text-warning mb-0">{{ por_pagar|pesos }}</h4>
+  </div></div>
+  <div class="col-md-4"><div class="card card-body border-start border-4 border-success shadow-sm">
+    <small class="text-muted">Pagado</small>
+    <h4 class="text-success mb-0">{{ pagado|pesos }}</h4>
+  </div></div>
+</div>
+
+<div class="table-responsive">
+<table class="table align-middle">
+  <thead class="table-light">
+    <tr><th>Vendedora</th><th class="text-end">Ventas netas</th><th>Tasa</th><th class="text-end">Comisión</th>
+        <th class="text-end">Bono</th><th class="text-end">Total</th><th>Estado</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for f in filas %}
+    {% set liq = f.liquidacion %}
+    <tr>
+      <td><a href="{{ url_for('comisiones.historial', id=f.vendedora.id) }}">{{ f.vendedora.nombre }}</a></td>
+      <td class="text-end">{{ f.ventas|pesos }}</td>
+      <td>{{ f.vendedora.tasa_comision_bp|porcentaje }}</td>
+      <td class="text-end">{{ f.calculo.comision|pesos }}</td>
+      <td class="text-end">
+        {% if f.calculo.bono %}{{ f.calculo.bono|pesos }} <i class="bi bi-star-fill text-warning" title="Cumplió meta"></i>
+        {% elif f.vendedora.meta_quincenal %}<small class="text-muted">Meta {{ f.vendedora.meta_quincenal|pesos }}</small>
+        {% else %}—{% endif %}
+      </td>
+      <td class="text-end fw-bold">{{ (liq.total if liq else f.calculo.total)|pesos }}</td>
+      <td>
+        {% if not liq %}<span class="badge bg-secondary">Sin liquidar</span>
+        {% elif liq.estado == 'pagada' and liq.tiene_soporte %}<span class="badge bg-success">Pagada <i class="bi bi-file-check"></i></span>
+        {% elif liq.estado == 'pagada' %}<span class="badge bg-warning text-dark">Pagada · sin soporte</span>
+        {% else %}<span class="badge bg-primary">Por pagar</span>{% endif %}
+        {% if f.desactualizada %}<br><small class="text-danger">Ventas cambiaron: recalcula</small>{% endif %}
+      </td>
+      <td>
+        {% if liq %}
+        <a href="{{ url_for('comisiones.detalle', id=liq.id) }}" class="btn btn-sm btn-outline-primary">Ver</a>
+        {% else %}
+        <form method="post" action="{{ url_for('comisiones.liquidar') }}">
+          <input type="hidden" name="q" value="{{ inicio.isoformat() }}">
+          <input type="hidden" name="vendedora_id" value="{{ f.vendedora.id }}">
+          <button class="btn btn-sm btn-outline-secondary">Liquidar</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" class="text-center text-muted py-4">No hay vendedoras. Créalas en Ventas → Vendedoras.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

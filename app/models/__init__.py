@@ -4,3 +4,4 @@ from .documento import Documento
 from .pago import Pago, AplicacionPago, MEDIOS_PAGO
 from .venta import Vendedora, Venta, CANALES, MEDIOS_VENTA
 from .meta import Meta, TramoIncentivo, Objetivo
+from .liquidacion import Liquidacion

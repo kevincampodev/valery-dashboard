@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 no-print">
+  <a href="{{ url_for('comisiones.index', q=liq.inicio.isoformat()) }}" class="btn btn-link px-0"><i class="bi bi-arrow-left"></i> Volver</a>
+  <div class="d-flex gap-2">
+    <button onclick="window.print()" class="btn btn-outline-dark"><i class="bi bi-printer"></i> Imprimir comprobante</button>
+    {% if liq.estado == 'pendiente' %}
+    <form method="post" action="{{ url_for('comisiones.liquidar') }}">
+      <input type="hidden" name="q" value="{{ liq.inicio.isoformat() }}">
+      <input type="hidden" name="vendedora_id" value="{{ liq.vendedora_id }}">
+      <button class="btn btn-outline-secondary"><i class="bi bi-arrow-repeat"></i> Recalcular</button>
+    </form>
+    <form method="post" action="{{ url_for('comisiones.eliminar', id=liq.id) }}" onsubmit="return confirm('¿Eliminar esta liquidación?')">
+      <button class="btn btn-outline-danger"><i class="bi bi-trash"></i></button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card card-body mb-4 comprobante">
+  <div class="text-center mb-3">
+    <h5 class="mb-0">{{ config.EMPRESA_NOMBRE }}</h5>
+    <small>Comprobante de pago de comisiones</small>
+  </div>
+  <table class="table table-sm">
+    <tr><th style="width:40%">Vendedora</th><td>{{ liq.vendedora.nombre }}</td></tr>
+    <tr><th>Periodo</th><td>{{ titulo }}</td></tr>
+    <tr><th>Ventas netas del periodo</th><td>{{ liq.ventas_netas|pesos }}</td></tr>
+    <tr><th>Comisión ({{ liq.tasa_bp|porcentaje }})</th><td>{{ liq.comision|pesos }}</td></tr>
+    {% if liq.meta %}
+    <tr><th>Bono por meta ({{ liq.meta|pesos }})</th><td>{{ liq.bono|pesos if liq.bono else 'No alcanzada' }}</td></tr>
+    {% endif %}
+    <tr class="table-light"><th>Total a pagar</th><td class="fw-bold fs-5">{{ liq.total|pesos }}</td></tr>
+    {% if liq.estado == 'pagada' %}
+    <tr><th>Pagado el</th><td>{{ liq.fecha_pago.strftime('%d/%m/%Y') }} · {{ liq.medio_pago }}</td></tr>
+    {% endif %}
+  </table>
+
+  <h6 class="mt-2">Detalle de ventas por día</h6>
+  <table class="table table-sm small">
+    {% for fecha, total in por_dia %}
+    <tr><td>{{ fecha.strftime('%d/%m/%Y') }}</td><td class="text-end">{{ total|pesos }}</td></tr>
+    {% else %}
+    <tr><td class="text-muted">Sin ventas registradas en el periodo.</td></tr>
+    {% endfor %}
+  </table>
+
+  <div class="row mt-4">
+    <div class="col-6"><div class="firma">Recibí conforme: {{ liq.vendedora.nombre }}<br>C.C. ______________________</div></div>
+    <div class="col-6"><div class="firma">Entregado por: {{ config.EMPRESA_NOMBRE }}</div></div>
+  </div>
+</div>
+
+<div class="row g-3 no-print">
+  {% if liq.estado == 'pendiente' %}
+  <div class="col-md-6">
+    <form method="post" action="{{ url_for('comisiones.pagar', id=liq.id) }}" enctype="multipart/form-data" class="card card-body">
+      <h6>Registrar pago</h6>
+      <div class="row g-2">
+        <div class="col-6"><input type="date" name="fecha_pago" class="form-control" value="{{ hoy.isoformat() }}"></div>
+        <div class="col-6"><select name="medio" class="form-select">{% for m in medios %}<option>{{ m }}</option>{% endfor %}</select></div>
+        <div class="col-12"><input type="file" name="soportes" class="form-control" multiple>
+          <small class="text-muted">Comprobante firmado (puedes subirlo después)</small></div>
+        <div class="col-12"><input name="notas" class="form-control" placeholder="Notas"></div>
+      </div>
+      <button class="btn btn-success mt-2"><i class="bi bi-check2-circle"></i> Marcar como pagada</button>
+    </form>
+  </div>
+  {% endif %}
+
+  <div class="col-md-6">
+    <div class="card card-body h-100">
+      <h6>Soportes firmados</h6>
+      <ul class="list-group list-group-flush mb-2">
+        {% for d in liq.documentos %}
+        <li class="list-group-item"><i class="bi bi-file-earmark-check text-success"></i>
+          <a href="{{ url_for('deudas.documento', id=d.id) }}" target="_blank">{{ d.nombre_original }}</a></li>
+        {% else %}
+        <li class="list-group-item text-muted">Sin soporte todavía.</li>
+        {% endfor %}
+      </ul>
+      {% if liq.estado == 'pagada' %}
+      <form method="post" action="{{ url_for('comisiones.subir_soporte', id=liq.id) }}" enctype="multipart/form-data" class="d-flex gap-2">
+        <input type="file" name="soportes" class="form-control form-control-sm" multiple required>
+        <button class="btn btn-sm btn-primary">Subir</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

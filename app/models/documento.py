@@ -16,3 +16,6 @@ class Documento(db.Model):
 
     pago_id = db.Column(db.Integer, db.ForeignKey("pagos.id"))
     pago = db.relationship("Pago", back_populates="documentos")
+
+    liquidacion_id = db.Column(db.Integer, db.ForeignKey("liquidaciones.id"))
+    liquidacion = db.relationship("Liquidacion", back_populates="documentos")
