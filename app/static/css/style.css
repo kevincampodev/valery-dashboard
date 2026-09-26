@@ -1,2 +1,9 @@
 .sidebar { width: 240px; min-height: 100vh; }
 .sidebar .nav-link.active { background: rgba(255,255,255,.15); border-radius: 6px; }
+.firma { border-top: 1px solid #000; margin-top: 70px; padding-top: 6px; font-size: .9rem; }
+
+@media print {
+  .sidebar, .no-print, .alert { display: none !important; }
+  main { padding: 0 !important; }
+  .comprobante { border: none !important; box-shadow: none !important; }
+}

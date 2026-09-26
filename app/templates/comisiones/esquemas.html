@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Esquemas de comisión</h2>
+  <a href="{{ url_for('comisiones.index') }}" class="btn btn-link">Volver</a>
+</div>
+<p class="text-muted">Tasa sobre las ventas netas de la quincena, más un bono fijo opcional si cumple su meta quincenal.
+  Los cambios no alteran liquidaciones ya pagadas.</p>
+
+<form method="post" class="card card-body">
+  <table class="table align-middle">
+    <thead><tr><th>Vendedora</th><th>Tasa (%)</th><th>Meta quincenal</th><th>Bono si cumple</th></tr></thead>
+    <tbody>
+      {% for v in vendedoras %}
+      <tr>
+        <td>{{ v.nombre }}</td>
+        <td><input name="tasa_{{ v.id }}" class="form-control" value="{{ (v.tasa_comision_bp|porcentaje)[:-1] if v.tasa_comision_bp else '' }}" placeholder="Ej: 2"></td>
+        <td><input name="meta_{{ v.id }}" class="form-control" value="{{ v.meta_quincenal or '' }}" placeholder="Opcional"></td>
+        <td><input name="bono_{{ v.id }}" class="form-control" value="{{ v.bono_meta or '' }}" placeholder="Opcional"></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="text-muted">No hay vendedoras activas.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div><button class="btn btn-primary"><i class="bi bi-save"></i> Guardar esquemas</button></div>
+</form>
+{% endblock %}
