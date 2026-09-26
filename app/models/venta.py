@@ -1,4 +1,7 @@
 from datetime import datetime
+
+from sqlalchemy import case
+
 from ..extensions import db
 
 CANALES = ["Minorista", "Mayorista"]
@@ -45,3 +48,7 @@ class Venta(db.Model):
     @property
     def neto(self):
         return -self.valor if self.es_devolucion else self.valor
+
+
+# Valor neto en SQL: resta las devoluciones. Úsalo con func.sum() para totales.
+NETO_SQL = case((Venta.es_devolucion, -Venta.valor), else_=Venta.valor)

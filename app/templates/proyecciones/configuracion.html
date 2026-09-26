@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Configuración de proyecciones</h2>
+  <a href="{{ url_for('proyecciones.index') }}" class="btn btn-link">Ver proyección</a>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card card-body shadow-sm mb-3">
+      <h5><i class="bi bi-bank"></i> Dinero disponible</h5>
+      <p class="small text-muted">Actualiza estos saldos cada vez que vayas a revisar la proyección.</p>
+      <table class="table table-sm align-middle">
+        {% for c in cuentas %}
+        <tr>
+          <td>{{ c.nombre }}<br><small class="text-muted">Actualizado {{ c.actualizado_en.strftime('%d/%m %H:%M') }}</small></td>
+          <td>
+            <form method="post" action="{{ url_for('proyecciones.actualizar_cuenta', id=c.id) }}" class="d-flex gap-1">
+              <input name="saldo" class="form-control form-control-sm" value="{{ c.saldo }}">
+              <button class="btn btn-sm btn-outline-primary"><i class="bi bi-check"></i></button>
+            </form>
+          </td>
+          <td>
+            <form method="post" action="{{ url_for('proyecciones.eliminar_cuenta', id=c.id) }}" onsubmit="return confirm('¿Eliminar cuenta?')">
+              <button class="btn btn-sm btn-link text-danger"><i class="bi bi-trash"></i></button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+      <form method="post" action="{{ url_for('proyecciones.crear_cuenta') }}" class="d-flex gap-2">
+        <input name="nombre" class="form-control form-control-sm" placeholder="Caja, Bancolombia, Nequi..." required>
+        <input name="saldo" class="form-control form-control-sm" placeholder="Saldo">
+        <button class="btn btn-sm btn-primary"><i class="bi bi-plus"></i></button>
+      </form>
+    </div>
+
+    <form method="post" action="{{ url_for('proyecciones.guardar_temporada') }}" class="card card-body shadow-sm">
+      <h5><i class="bi bi-calendar3"></i> Factores de temporada</h5>
+      <p class="small text-muted">100 = mes normal. Ejemplo: diciembre 180 = se vende 80% más que el promedio.</p>
+      <div class="row g-2">
+        {% for nombre in meses %}
+        <div class="col-4">
+          <label class="form-label small mb-0">{{ nombre|capitalize }}</label>
+          <input name="mes_{{ loop.index }}" type="number" min="0" max="500" class="form-control form-control-sm"
+                 value="{{ factores.get(loop.index, 100) }}">
+        </div>
+        {% endfor %}
+      </div>
+      <button class="btn btn-primary btn-sm mt-3"><i class="bi bi-save"></i> Guardar factores</button>
+    </form>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card card-body shadow-sm">
+      <h5><i class="bi bi-arrow-repeat"></i> Gastos fijos recurrentes</h5>
+      <table class="table table-sm align-middle">
+        <thead><tr><th>Gasto</th><th>Frecuencia</th><th class="text-end">Valor</th><th></th></tr></thead>
+        <tbody>
+          {% set dias_semana = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'] %}
+          {% for g in gastos %}
+          <tr class="{{ 'text-muted' if not g.activo }}">
+            <td>{{ g.nombre }}<br><small class="text-muted">{{ g.categoria }}</small></td>
+            <td class="small">
+              {% if g.frecuencia == 'mensual' %}Mensual, día {{ g.dia }}
+              {% elif g.frecuencia == 'quincenal' %}Quincenal (15 y fin de mes)
+              {% else %}Cada {{ dias_semana[g.dia] }}{% endif %}
+            </td>
+            <td class="text-end">{{ g.valor|pesos }}</td>
+            <td class="d-flex gap-1 justify-content-end">
+              <form method="post" action="{{ url_for('proyecciones.cambiar_estado_gasto', id=g.id) }}">
+                <button class="btn btn-sm btn-outline-secondary">{{ 'Pausar' if g.activo else 'Activar' }}</button>
+              </form>
+              <form method="post" action="{{ url_for('proyecciones.eliminar_gasto', id=g.id) }}" onsubmit="return confirm('¿Eliminar gasto?')">
+                <button class="btn btn-sm btn-link text-danger"><i class="bi bi-trash"></i></button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="text-muted">Sin gastos registrados.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <form method="post" action="{{ url_for('proyecciones.crear_gasto') }}" class="row g-2">
+        <div class="col-md-4"><input name="nombre" class="form-control form-control-sm" placeholder="Nombre *" required></div>
+        <div class="col-md-3">
+          <select name="categoria" class="form-select form-select-sm">{% for c in categorias %}<option>{{ c }}</option>{% endfor %}</select>
+        </div>
+        <div class="col-md-3"><input name="valor" class="form-control form-control-sm" placeholder="Valor *" required></div>
+        <div class="col-md-2">
+          <select name="frecuencia" class="form-select form-select-sm">{% for f in frecuencias %}<option>{{ f }}</option>{% endfor %}</select>
+        </div>
+        <div class="col-md-3"><input name="dia" type="number" class="form-control form-control-sm" placeholder="Día" value="1"></div>
+        <div class="col-md-7 small text-muted">Mensual: día del mes (1-31). Semanal: 0 = lunes … 6 = domingo. Quincenal: se ignora.</div>
+        <div class="col-md-2"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-plus"></i></button></div>
+      </form>
+    </div>
+    <p class="small text-muted mt-2">Comisiones históricas: se está pagando en promedio {{ tasa_comision|porcentaje }} de las ventas.</p>
+  </div>
+</div>
+{% endblock %}

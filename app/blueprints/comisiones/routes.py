@@ -1,16 +1,14 @@
 from datetime import date, timedelta
 
 from flask import render_template, request, redirect, url_for, flash
-from sqlalchemy import case, func
+from sqlalchemy import func
 
 from . import bp
 from ...extensions import db
-from ...models import Vendedora, Venta, Liquidacion, Documento, MEDIOS_PAGO
+from ...models import Vendedora, Venta, Liquidacion, Documento, MEDIOS_PAGO, NETO_SQL
 from ...services.archivos import guardar_archivo
 from ...services.comisiones import quincena_de, etiqueta_quincena, calcular_comision
 from ...utils import a_pesos, a_fecha, a_bp, formato_pesos
-
-NETO_SQL = case((Venta.es_devolucion, -Venta.valor), else_=Venta.valor)
 
 
 def _leer_quincena(texto):
