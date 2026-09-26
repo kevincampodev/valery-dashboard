@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+{% set enlaces = {'Factura': 'deudas.detalle', 'Comisión': 'comisiones.detalle'} %}
+{% set dias_semana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'] %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Pagos pendientes</h2>
+  <form method="get">
+    <select name="dias" class="form-select" onchange="this.form.submit()">
+      {% for d in [7, 15, 30, 60, 90] %}<option value="{{ d }}" {{ 'selected' if d == dias }}>Próximos {{ d }} días</option>{% endfor %}
+    </select>
+  </form>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-6"><div class="card card-body border-start border-4 border-danger shadow-sm">
+    <small class="text-muted">Vencido</small><h4 class="text-danger mb-0">{{ total_vencido|pesos }}</h4>
+  </div></div>
+  <div class="col-md-6"><div class="card card-body border-start border-4 border-warning shadow-sm">
+    <small class="text-muted">Próximos {{ dias }} días</small><h4 class="text-warning mb-0">{{ total_proximo|pesos }}</h4>
+  </div></div>
+</div>
+
+{% macro fila(i) %}
+<li class="list-group-item d-flex justify-content-between align-items-center">
+  <span>
+    <span class="badge bg-{{ 'primary' if i.tipo == 'Factura' else 'info text-dark' if i.tipo == 'Comisión' else 'secondary' }} me-1">{{ i.tipo }}</span>
+    {% if i.tipo in enlaces %}<a href="{{ url_for(enlaces[i.tipo], id=i.id) }}">{{ i.descripcion }}</a>
+    {% else %}<a href="{{ url_for('proyecciones.configuracion') }}">{{ i.descripcion }}</a>{% endif %}
+  </span>
+  <strong>{{ i.valor|pesos }}</strong>
+</li>
+{% endmacro %}
+
+{% if vencidos %}
+<div class="card shadow-sm mb-4 border-danger">
+  <div class="card-header bg-danger text-white">Vencido</div>
+  <ul class="list-group list-group-flush">
+    {% for i in vencidos %}{{ fila(i) }}{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% for fecha, grupo in proximos|groupby('fecha') %}
+<div class="card shadow-sm mb-3">
+  <div class="card-header d-flex justify-content-between">
+    <span>{{ dias_semana[fecha.weekday()] }} {{ fecha.strftime('%d/%m/%Y') }}
+      {% if fecha == hoy %}<span class="badge bg-warning text-dark">Hoy</span>{% endif %}</span>
+    <strong>{{ grupo|sum(attribute='valor')|pesos }}</strong>
+  </div>
+  <ul class="list-group list-group-flush">
+    {% for i in grupo %}{{ fila(i) }}{% endfor %}
+  </ul>
+</div>
+{% else %}
+<p class="text-muted">No hay pagos programados en este periodo. 🎉</p>
+{% endfor %}
+{% endblock %}

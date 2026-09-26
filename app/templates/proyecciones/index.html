@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Proyección de flujo de caja</h2>
+  <a href="{{ url_for('proyecciones.configuracion') }}" class="btn btn-outline-secondary"><i class="bi bi-gear"></i> Configurar</a>
+</div>
+
+<form method="get" class="d-flex gap-2 mb-3">
+  <div class="btn-group">
+    {% for nombre, pct in escenarios.items() %}
+    <input type="radio" class="btn-check" name="escenario" id="esc_{{ nombre }}" value="{{ nombre }}"
+           {{ 'checked' if nombre == escenario }} onchange="this.form.submit()">
+    <label class="btn btn-outline-primary" for="esc_{{ nombre }}">{{ nombre|capitalize }} ({{ pct }}%)</label>
+    {% endfor %}
+  </div>
+  <select name="semanas" class="form-select" style="width:auto" onchange="this.form.submit()">
+    {% for s in [4, 8, 12, 16, 26] %}<option value="{{ s }}" {{ 'selected' if s == semanas }}>{{ s }} semanas</option>{% endfor %}
+  </select>
+</form>
+
+{% if not cuentas %}
+<div class="alert alert-warning">No hay cuentas de dinero registradas: la proyección arranca en $0.
+  <a href="{{ url_for('proyecciones.configuracion') }}">Registra tus saldos</a>.</div>
+{% endif %}
+{% if pocos_datos %}
+<div class="alert alert-info">Hay menos de 2 semanas de ventas registradas en los últimos 2 meses: la proyección de ventas será baja y poco confiable.</div>
+{% endif %}
+{% if primera_negativa %}
+<div class="alert alert-danger">
+  <i class="bi bi-exclamation-octagon"></i> <strong>Alerta:</strong> en la semana del {{ primera_negativa.inicio.strftime('%d/%m') }}
+  el saldo quedaría en <strong>{{ primera_negativa.saldo_final|pesos }}</strong>. Revisa qué pagos se pueden mover o negociar.
+</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  {% set total_ventas = filas|sum(attribute='ventas') %}
+  {% set total_salidas = filas|sum(attribute='salidas') %}
+  {% for titulo, valor, color in [
+      ('Dinero disponible hoy', saldo_inicial, 'primary'),
+      ('Entradas proyectadas', total_ventas, 'success'),
+      ('Salidas programadas', total_salidas, 'danger'),
+      ('Saldo al final', filas[-1].saldo_final, 'success' if filas[-1].saldo_final >= 0 else 'danger')] %}
+  <div class="col-md-3">
+    <div class="card card-body border-start border-4 border-{{ color }} shadow-sm">
+      <small class="text-muted">{{ titulo }}</small>
+      <h4 class="text-{{ color }} mb-0">{{ valor|pesos }}</h4>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card card-body shadow-sm mb-4">
+  <div style="height:300px"><canvas id="grafFlujo"></canvas></div>
+</div>
+
+<div class="table-responsive">
+<table class="table table-sm align-middle">
+  <thead class="table-light">
+    <tr><th>Semana</th><th class="text-end">Saldo inicial</th><th class="text-end">Ventas</th><th class="text-end">Facturas</th>
+        <th class="text-end">Gastos fijos</th><th class="text-end">Comisiones</th><th class="text-end">Neto</th><th class="text-end">Saldo final</th></tr>
+  </thead>
+  <tbody>
+    {% for f in filas %}
+    <tr class="{{ 'table-danger' if f.saldo_final < 0 }}">
+      <td>{{ f.inicio.strftime('%d/%m') }} – {{ f.fin.strftime('%d/%m') }}{% if loop.first %} <span class="badge bg-secondary">Actual</span>{% endif %}</td>
+      <td class="text-end">{{ f.saldo_inicial|pesos }}</td>
+      <td class="text-end text-success">{{ f.ventas|pesos }}</td>
+      <td class="text-end">{{ f.facturas|pesos if f.facturas else '—' }}</td>
+      <td class="text-end">{{ f.gastos|pesos if f.gastos else '—' }}</td>
+      <td class="text-end">{{ f.comisiones|pesos if f.comisiones else '—' }}</td>
+      <td class="text-end {{ 'text-danger' if f.neto < 0 else 'text-success' }}">{{ f.neto|pesos if f.neto >= 0 else '-' ~ (-f.neto)|pesos }}</td>
+      <td class="text-end fw-bold">{{ f.saldo_final|pesos if f.saldo_final >= 0 else '-' ~ (-f.saldo_final)|pesos }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="small text-muted">Ventas: promedio de las últimas 8 semanas por día de la semana × factor de temporada × escenario.
+  Las facturas vencidas se cargan a la semana actual. Comisiones: liquidadas pendientes + estimado según lo pagado históricamente.</p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const g = {{ grafica|tojson }};
+  const millones = v => (v < 0 ? '-$' : '$') + (Math.abs(v) / 1e6).toLocaleString('es-CO', { maximumFractionDigits: 1 }) + 'M';
+  const pesos = v => (v < 0 ? '-$' : '$') + Math.abs(Math.round(v)).toLocaleString('es-CO');
+  new Chart(document.getElementById('grafFlujo'), {
+    data: {
+      labels: g.etiquetas,
+      datasets: [
+        { type: 'bar', label: 'Entradas', data: g.ventas, backgroundColor: '#20c997' },
+        { type: 'bar', label: 'Salidas', data: g.salidas, backgroundColor: '#dc3545' },
+        { type: 'line', label: 'Saldo', data: g.saldo, borderColor: '#0d6efd', tension: 0.2,
+          pointBackgroundColor: g.saldo.map(v => v < 0 ? '#dc3545' : '#0d6efd'), pointRadius: 5 },
+      ],
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: { tooltip: { callbacks: { label: c => c.dataset.label + ': ' + pesos(c.raw) } } },
+      scales: { y: { ticks: { callback: millones } } },
+    },
+  });
+</script>
+{% endblock %}
