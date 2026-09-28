@@ -2,8 +2,7 @@ import io
 import zipfile
 from xml.etree.ElementTree import ParseError
 
-from flask import (render_template, request, redirect, url_for, flash,
-                   send_from_directory, current_app)
+from flask import render_template, request, redirect, url_for, flash
 from sqlalchemy.exc import IntegrityError
 from werkzeug.datastructures import FileStorage
 
@@ -132,13 +131,6 @@ def formulario(id=None):
 @bp.route("/<int:id>")
 def detalle(id):
     return render_template("deudas/detalle.html", factura=db.get_or_404(Factura, id))
-
-
-@bp.route("/documento/<int:id>")
-def documento(id):
-    doc = db.get_or_404(Documento, id)
-    return send_from_directory(current_app.config["UPLOAD_FOLDER"], doc.ruta,
-                               download_name=doc.nombre_original)
 
 
 @bp.route("/importar", methods=["GET", "POST"])

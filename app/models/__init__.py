@@ -6,3 +6,4 @@ from .venta import Vendedora, Venta, CANALES, MEDIOS_VENTA, NETO_SQL
 from .meta import Meta, TramoIncentivo, Objetivo
 from .liquidacion import Liquidacion
 from .finanzas import CuentaDinero, GastoRecurrente, AjusteTemporada, FRECUENCIAS, CATEGORIAS_GASTO
+from .bitacora import Bitacora

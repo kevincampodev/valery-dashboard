@@ -19,3 +19,18 @@ class Documento(db.Model):
 
     liquidacion_id = db.Column(db.Integer, db.ForeignKey("liquidaciones.id"))
     liquidacion = db.relationship("Liquidacion", back_populates="documentos")
+
+
+    @property
+    def vinculo(self):
+        """(tipo, descripción, endpoint, parámetros) para enlazar al registro dueño del archivo."""
+        if self.factura:
+            return ("Factura", f"{self.factura.proveedor.nombre} · {self.factura.numero}",
+                    "deudas.detalle", {"id": self.factura_id})
+        if self.pago:
+            return ("Abono", f"{self.pago.proveedor.nombre} · {self.pago.fecha:%d/%m/%Y}",
+                    "abonos.index", {"proveedor": self.pago.proveedor_id})
+        if self.liquidacion:
+            return ("Comisión", f"{self.liquidacion.vendedora.nombre} · {self.liquidacion.inicio:%d/%m/%Y}",
+                    "comisiones.detalle", {"id": self.liquidacion_id})
+        return ("Sin vínculo", "", None, {})

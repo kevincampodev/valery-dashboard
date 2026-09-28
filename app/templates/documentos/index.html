@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="mb-3">Documentos</h2>
+
+<form method="get" class="row g-2 mb-3">
+  <div class="col-md-5">
+    <input name="q" value="{{ texto }}" class="form-control" placeholder="Buscar por nombre de archivo...">
+  </div>
+  <div class="col-md-4">
+    <select name="tipo" class="form-select" onchange="this.form.submit()">
+      <option value="">Todos</option>
+      {% for clave, nombre in [('factura', 'Facturas'), ('pago', 'Comprobantes de abono'), ('liquidacion', 'Soportes de comisión')] %}
+      <option value="{{ clave }}" {{ 'selected' if tipo == clave }}>{{ nombre }} ({{ conteos[clave] }})</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3"><button class="btn btn-outline-primary w-100"><i class="bi bi-search"></i> Buscar</button></div>
+</form>
+
+<div class="table-responsive">
+<table class="table table-sm align-middle">
+  <thead class="table-light"><tr><th>Archivo</th><th>Pertenece a</th><th>Subido</th><th class="text-end">Tamaño</th></tr></thead>
+  <tbody>
+    {% for d in documentos %}
+    {% set tipo_v, descripcion, endpoint, params = d.vinculo %}
+    <tr>
+      <td>
+        <i class="bi {{ 'bi-file-earmark-pdf text-danger' if d.tipo == 'pdf' else 'bi-file-earmark-code' if d.tipo == 'xml' else 'bi-file-earmark-image text-primary' }}"></i>
+        <a href="{{ url_for('documentos.ver', id=d.id) }}" target="_blank">{{ d.nombre_original }}</a>
+      </td>
+      <td>
+        <span class="badge bg-secondary">{{ tipo_v }}</span>
+        {% if endpoint %}<a href="{{ url_for(endpoint, **params) }}" class="small">{{ descripcion }}</a>{% endif %}
+      </td>
+      <td class="small">{{ d.subido_en.strftime('%d/%m/%Y %H:%M') }}</td>
+      <td class="text-end small">
+        {% if tamanos[d.id] is none %}<span class="badge bg-danger">Falta en disco</span>
+        {% else %}{{ tamanos[d.id]|tamano }}{% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4" class="text-center text-muted py-4">No hay documentos.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}
