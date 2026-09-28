@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+{% set colores = {'crear': 'success', 'editar': 'primary', 'eliminar': 'danger'} %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Bitácora de cambios</h2>
+  <a href="{{ url_for('sistema.index') }}" class="btn btn-link">Volver</a>
+</div>
+
+<form method="get" class="row g-2 mb-3">
+  <div class="col-md-4">
+    <select name="tabla" class="form-select" onchange="this.form.submit()">
+      <option value="">Todas las tablas</option>
+      {% for clave, nombre in nombres.items() %}<option value="{{ clave }}" {{ 'selected' if clave == tabla }}>{{ nombre }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <select name="accion" class="form-select" onchange="this.form.submit()">
+      <option value="">Todas las acciones</option>
+      {% for a in ['crear', 'editar', 'eliminar'] %}<option {{ 'selected' if a == accion }}>{{ a }}</option>{% endfor %}
+    </select>
+  </div>
+</form>
+
+<table class="table table-sm align-middle">
+  <thead class="table-light"><tr><th>Fecha</th><th>Acción</th><th>Registro</th><th>Detalle</th></tr></thead>
+  <tbody>
+    {% for r in registros %}
+    <tr>
+      <td class="small text-nowrap">{{ r.fecha.strftime('%d/%m/%Y %H:%M:%S') }}</td>
+      <td><span class="badge bg-{{ colores[r.accion] }}">{{ r.accion }}</span></td>
+      <td class="small">{{ nombres.get(r.tabla, r.tabla) }} #{{ r.registro_id }}</td>
+      <td class="small">
+        {% if r.accion == 'editar' %}
+          {% for campo, (antes, despues) in r.detalle.items() %}
+          <div><strong>{{ campo }}:</strong> <span class="text-danger">{{ antes }}</span> → <span class="text-success">{{ despues }}</span></div>
+          {% endfor %}
+        {% else %}
+          <details><summary class="text-muted">Ver datos</summary>
+            {% for campo, valor in r.detalle.items() %}<div><strong>{{ campo }}:</strong> {{ valor }}</div>{% endfor %}
+          </details>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4" class="text-center text-muted py-4">Sin registros.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

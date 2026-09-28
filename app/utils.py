@@ -62,3 +62,11 @@ def a_bp(texto):
 def formato_bp(bp):
     """50 -> '0,5%' | 125 -> '1,25%' | 100 -> '1%'"""
     return f"{(bp or 0) / 100:g}".replace(".", ",") + "%"
+
+
+def formato_tamano(bytes_):
+    for unidad in ("B", "KB", "MB", "GB"):
+        if bytes_ < 1024:
+            return f"{bytes_:.0f} {unidad}" if unidad == "B" else f"{bytes_:.1f} {unidad}"
+        bytes_ /= 1024
+    return f"{bytes_:.1f} TB"
