@@ -30,7 +30,9 @@ def normalizar(texto):
 
 
 def formato_pesos(valor):
-    return "$" + f"{int(valor or 0):,}".replace(",", ".")
+    valor = int(valor or 0)
+    signo = "-" if valor < 0 else ""
+    return f"{signo}${abs(valor):,}".replace(",", ".")
 
 
 def mes_desde_texto(texto):

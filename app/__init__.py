@@ -36,9 +36,9 @@ def create_app(config_class=Config):
 
     # Módulos
     from .blueprints import (dashboard, deudas, abonos, ventas, metas, comisiones,
-                             proyecciones, pagos, documentos, reportes, sistema)
+                             proyecciones, pagos, marketing, documentos, reportes, sistema)
     for modulo in (dashboard, deudas, abonos, ventas, metas, comisiones,
-                   proyecciones, pagos, documentos, reportes, sistema):
+                   proyecciones, pagos, marketing, documentos, reportes, sistema):
         app.register_blueprint(modulo.bp)
 
     from .cli import seed_demo, importar_ventas

@@ -9,6 +9,7 @@ NOMBRES_TABLAS = {
     "ventas": "Venta", "vendedoras": "Vendedora", "liquidaciones": "Liquidación", "metas": "Meta",
     "tramos_incentivo": "Tramo de incentivo", "objetivos": "Objetivo", "documentos": "Documento",
     "cuentas_dinero": "Cuenta de dinero", "gastos_recurrentes": "Gasto fijo", "ajustes_temporada": "Factor de temporada",
+    "inversiones_publicidad": "Pauta publicitaria", "parametros": "Parámetro",
 }
 
 
