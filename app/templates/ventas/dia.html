@@ -42,7 +42,8 @@
 
 <form method="post" class="card card-body shadow-sm">
   <div class="d-flex justify-content-between align-items-center mb-2">
-    <h6 class="mb-0">Agregar registros</h6>
+    <h6 class="mb-0">Agregar ventas minoristas
+      <small class="text-muted fw-normal">· las mayoristas van en <a href="{{ url_for('mayoristas.nueva_venta') }}">Mayoristas → Nueva venta</a></small></h6>
     <span>Total a guardar: <strong id="totalNuevo">$0</strong></span>
   </div>
   {% if not vendedoras %}
@@ -63,7 +64,7 @@
     <td><select name="canal" class="form-select form-select-sm">{% for c in canales %}<option>{{ c }}</option>{% endfor %}</select></td>
     <td><select name="vendedora_id" class="form-select form-select-sm">
       <option value="">— Sin vendedora —</option>
-      {% for v in vendedoras %}<option value="{{ v.id }}">{{ v.nombre }}</option>{% endfor %}
+      {% for v in vendedoras %}<option value="{{ v.id }}" data-mayorista="{{ 1 if v.vende_mayorista else 0 }}">{{ v.nombre }}</option>{% endfor %}
     </select></td>
     <td><select name="medio_pago" class="form-select form-select-sm">{% for m in medios %}<option>{{ m }}</option>{% endfor %}</select></td>
     <td><select name="medio_contacto" class="form-select form-select-sm">
@@ -115,9 +116,19 @@
       const valor = parseInt(tr.querySelector('[name=valor]').value.split(',')[0].replace(/\D/g, '')) || 0;
       return valor > 0 && !tr.querySelector('[name=medio_contacto]').value;
     });
+    const UMBRAL = {{ umbral|tojson }};
+    const esMayorista = [...filas.querySelectorAll('tr')].some(tr => {
+      const valor = parseInt(tr.querySelector('[name=valor]').value.split(',')[0].replace(/\D/g, '')) || 0;
+      const opcion = tr.querySelector('[name=vendedora_id]').selectedOptions[0];
+      return tr.querySelector('[name=tipo]').value === 'venta' && opcion?.dataset.mayorista === '1' && valor > UMBRAL;
+    });
     if (faltaContacto) {
       evento.preventDefault();
       alert('Falta indicar cómo llegó el cliente (Orgánico, TikTok, Voz a voz) en alguna fila con valor.');
+    } else if (esMayorista) {
+      evento.preventDefault();
+      alert('Hay una venta de más de $' + UMBRAL.toLocaleString('es-CO') +
+            ' hecha por quien vende al por mayor. Es mayorista: regístrala en Mayoristas → Nueva venta.');
     }
   });
 

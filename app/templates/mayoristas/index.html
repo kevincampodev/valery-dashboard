@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0"><i class="bi bi-shop"></i> Mayoristas</h2>
+  <div>
+    <a href="{{ url_for('mayoristas.precios') }}" class="btn btn-outline-secondary"><i class="bi bi-tags"></i> Lista de precios</a>
+    <a href="{{ url_for('mayoristas.nueva_venta') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nueva venta mayorista</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4"><div class="card card-body border-start border-4 border-primary shadow-sm">
+    <small class="text-muted">Ventas mayoristas este mes</small>
+    <h4 class="mb-0">{{ ventas_mes|pesos }}</h4><small class="text-muted">{{ compras_mes }} ventas</small>
+  </div></div>
+  <div class="col-md-4"><div class="card card-body border-start border-4 border-success shadow-sm">
+    <small class="text-muted">Clientes activos</small>
+    <h4 class="mb-0">{{ clientes|selectattr('activo')|list|length }}</h4>
+  </div></div>
+  <div class="col-md-4"><div class="card card-body border-start border-4 border-secondary shadow-sm">
+    <small class="text-muted">Ventas mayoristas sin cliente (histórico)</small>
+    <h4 class="mb-0">{{ sin_cliente.total|pesos }}</h4><small class="text-muted">{{ sin_cliente.cantidad }} ventas</small>
+  </div></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <form method="get" class="d-flex gap-2 mb-2">
+      <input name="q" value="{{ texto }}" class="form-control" placeholder="Buscar por nombre, documento, teléfono o ciudad">
+      <button class="btn btn-outline-primary"><i class="bi bi-search"></i></button>
+    </form>
+    <table class="table table-hover align-middle">
+      <thead class="table-light"><tr><th>Cliente</th><th>Ciudad</th><th class="text-end">Compras</th><th class="text-end">Total comprado</th><th>Última compra</th></tr></thead>
+      <tbody>
+        {% for c in clientes %}
+        {% set e = estadisticas.get(c.id, {'total': 0, 'compras': 0, 'ultima': none}) %}
+        <tr onclick="location.href='{{ url_for('mayoristas.cliente', id=c.id) }}'" style="cursor:pointer" class="{{ 'text-muted' if not c.activo }}">
+          <td>{{ c.nombre }}{% if c.documento %}<br><small class="text-muted">{{ c.documento }}</small>{% endif %}</td>
+          <td>{{ c.ciudad or '—' }}</td>
+          <td class="text-end">{{ e.compras }}</td>
+          <td class="text-end fw-bold">{{ e.total|pesos }}</td>
+          <td>{{ e.ultima.strftime('%d/%m/%Y') if e.ultima else '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-4">Aún no hay clientes mayoristas.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="col-lg-4">
+    <form method="post" action="{{ url_for('mayoristas.guardar_umbral') }}" class="card card-body shadow-sm mb-3">
+      <h6>Regla de venta mayorista</h6>
+      <p class="small text-muted mb-2">La hace alguien con permiso de venta mayorista y el total de la venta pasa de:</p>
+      <div class="input-group">
+        <input name="umbral" class="form-control" value="{{ umbral }}">
+        <button class="btn btn-outline-primary">Guardar</button>
+      </div>
+    </form>
+    <form method="post" action="{{ url_for('mayoristas.crear_cliente') }}" class="card card-body shadow-sm">
+      <h6>Nuevo cliente mayorista</h6>
+      <input name="nombre" class="form-control mb-2" placeholder="Nombre o razón social *" required>
+      <input name="documento" class="form-control mb-2" placeholder="Cédula o NIT">
+      <input name="telefono" class="form-control mb-2" placeholder="Teléfono">
+      <input name="ciudad" class="form-control mb-2" placeholder="Ciudad">
+      <button class="btn btn-primary"><i class="bi bi-person-plus"></i> Crear</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

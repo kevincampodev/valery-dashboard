@@ -6,7 +6,8 @@ from sqlalchemy.orm import joinedload
 
 from . import bp
 from ...extensions import db
-from ...models import Venta, Vendedora, CANALES, MEDIOS_VENTA, MEDIOS_CONTACTO
+from ...models import Venta, Vendedora, Parametro, CANALES, MEDIOS_VENTA, MEDIOS_CONTACTO
+from ...services.mayoristas import es_mayorista, UMBRAL_MAYORISTA_DEFECTO
 from ...services.ventas import resumen_mes
 from ...utils import a_pesos, a_fecha, formato_pesos, mes_desde_texto, rango_mes, nombre_mes
 
@@ -44,6 +45,8 @@ def dia(fecha):
 
     vendedoras = Vendedora.query.filter_by(activa=True).order_by(Vendedora.nombre).all()
     ids_validos = {v.id for v in vendedoras}
+    ids_mayoristas = {v.id for v in vendedoras if v.vende_mayorista}
+    umbral = Parametro.obtener_int("umbral_mayorista", UMBRAL_MAYORISTA_DEFECTO)
 
     if request.method == "POST":
         f = request.form
@@ -59,7 +62,11 @@ def dia(fecha):
             if contacto not in MEDIOS_CONTACTO:
                 errores.append(f"Fila {n}: falta el medio de contacto.")
                 continue
-            if canal not in CANALES or medio not in MEDIOS_VENTA or (vendedora_id and vendedora_id not in ids_validos):
+            if tipo != "devolucion" and es_mayorista(vendedora_id in ids_mayoristas, valor, umbral):
+                errores.append(f"Fila {n}: venta de {formato_pesos(valor)} hecha por quien vende al por mayor. "
+                               f"Es mayorista: regístrala en Mayoristas → Nueva venta.")
+                continue
+            if canal != "Minorista" or medio not in MEDIOS_VENTA or (vendedora_id and vendedora_id not in ids_validos):
                 errores.append(f"Fila {n}: datos inválidos.")
                 continue
             nuevas.append(Venta(
@@ -87,9 +94,10 @@ def dia(fecha):
         registros=registros,
         total=sum(r.neto for r in registros),
         vendedoras=vendedoras,
-        canales=CANALES,
+        canales=["Minorista"],
         medios=MEDIOS_VENTA,
         contactos=MEDIOS_CONTACTO,
+        umbral=umbral,
         anterior=(fecha_venta - timedelta(days=1)).isoformat(),
         siguiente=(fecha_venta + timedelta(days=1)).isoformat(),
     )
@@ -131,4 +139,14 @@ def cambiar_estado(id):
     vendedora.activa = not vendedora.activa
     db.session.commit()
     flash(f"{vendedora.nombre} ahora está {'activa' if vendedora.activa else 'inactiva'}.", "info")
+    return redirect(url_for("ventas.vendedoras"))
+
+
+@bp.route("/vendedoras/<int:id>/mayorista", methods=["POST"])
+def cambiar_mayorista(id):
+    vendedora = db.get_or_404(Vendedora, id)
+    vendedora.vende_mayorista = not vendedora.vende_mayorista
+    db.session.commit()
+    estado = "ahora puede" if vendedora.vende_mayorista else "ya no puede"
+    flash(f"{vendedora.nombre} {estado} registrar ventas mayoristas.", "info")
     return redirect(url_for("ventas.vendedoras"))

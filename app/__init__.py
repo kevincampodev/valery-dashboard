@@ -35,15 +35,16 @@ def create_app(config_class=Config):
     registrar_backup_diario(app)
 
     # Módulos
-    from .blueprints import (dashboard, deudas, abonos, ventas, metas, comisiones,
+    from .blueprints import (dashboard, deudas, abonos, ventas, mayoristas, metas, comisiones,
                              proyecciones, pagos, marketing, documentos, reportes, sistema)
-    for modulo in (dashboard, deudas, abonos, ventas, metas, comisiones,
+    for modulo in (dashboard, deudas, abonos, ventas, mayoristas, metas, comisiones,
                    proyecciones, pagos, marketing, documentos, reportes, sistema):
         app.register_blueprint(modulo.bp)
 
-    from .cli import seed_demo, importar_ventas
+    from .cli import seed_demo, importar_ventas, reclasificar_canal
     app.cli.add_command(seed_demo)
     app.cli.add_command(importar_ventas)
+    app.cli.add_command(reclasificar_canal)
 
     # Filtros de plantilla
     app.add_template_filter(formato_pesos, "pesos")

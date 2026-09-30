@@ -23,6 +23,7 @@ class Vendedora(db.Model):
     tasa_comision_bp = db.Column(db.Integer, nullable=False, default=0, server_default="0")
     meta_quincenal = db.Column(db.Integer)
     bono_meta = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+    vende_mayorista = db.Column(db.Boolean, nullable=False, default=False, server_default="0")
 
     ventas = db.relationship("Venta", back_populates="vendedora")
     liquidaciones = db.relationship("Liquidacion", back_populates="vendedora")
@@ -46,7 +47,11 @@ class Venta(db.Model):
     origen = db.Column(db.String(10), nullable=False, default="manual", server_default="manual")
     creado_en = db.Column(db.DateTime, default=datetime.now)
 
+    cliente_id = db.Column(db.Integer, db.ForeignKey("clientes.id"))
+
     vendedora = db.relationship("Vendedora", back_populates="ventas")
+    cliente = db.relationship("Cliente", back_populates="ventas")
+    lineas = db.relationship("LineaVenta", back_populates="venta", cascade="all, delete-orphan")
 
     @property
     def neto(self):

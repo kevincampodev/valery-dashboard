@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0"><i class="bi bi-tags"></i> Lista de precios mayoristas</h2>
+  <a href="{{ url_for('mayoristas.index') }}" class="btn btn-link">Volver</a>
+</div>
+<form method="get" class="d-flex gap-2 mb-3" style="max-width: 420px">
+  <input name="ref" value="{{ texto }}" class="form-control" placeholder="Buscar referencia">
+  <button class="btn btn-outline-primary"><i class="bi bi-search"></i></button>
+</form>
+<table class="table table-hover align-middle">
+  <thead class="table-light">
+    <tr><th>Referencia</th><th class="text-end">Último precio</th><th>Fecha · cliente</th><th class="text-end">Promedio</th>
+        <th class="text-end">Mínimo</th><th class="text-end">Máximo</th><th class="text-end">Unidades</th></tr>
+  </thead>
+  <tbody>
+    {% for ref, p in precios.items() %}
+    <tr class="{{ 'table-warning' if p.maximo > p.minimo * 1.15 }}">
+      <td><strong>{{ ref }}</strong></td>
+      <td class="text-end fw-bold">{{ p.ultimo|pesos }}</td>
+      <td class="small">{{ p.fecha_ultimo.strftime('%d/%m/%Y') }} · {{ p.cliente_ultimo or 'Sin cliente' }}</td>
+      <td class="text-end">{{ p.promedio|pesos }}</td>
+      <td class="text-end">{{ p.minimo|pesos }}</td>
+      <td class="text-end">{{ p.maximo|pesos }}</td>
+      <td class="text-end">{{ p.unidades }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="text-center text-muted py-4">Aún no hay ventas mayoristas con detalle.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p class="small text-muted">En amarillo: referencias donde el precio más alto supera en más de 15% al más bajo. Vale la pena revisar si es intencional.</p>
+{% endblock %}

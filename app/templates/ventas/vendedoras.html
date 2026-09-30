@@ -14,7 +14,7 @@
 </form>
 
 <table class="table align-middle">
-  <thead class="table-light"><tr><th>Nombre</th><th>Ingreso</th><th>Estado</th><th></th></tr></thead>
+  <thead class="table-light"><tr><th>Nombre</th><th>Ingreso</th><th>Estado</th><th>Vende al por mayor</th><th></th></tr></thead>
   <tbody>
     {% for v in vendedoras %}
     <tr class="{{ 'text-muted' if not v.activa }}">
@@ -22,13 +22,19 @@
       <td>{{ v.fecha_ingreso.strftime('%d/%m/%Y') if v.fecha_ingreso else '—' }}</td>
       <td><span class="badge bg-{{ 'success' if v.activa else 'secondary' }}">{{ 'Activa' if v.activa else 'Inactiva' }}</span></td>
       <td>
+        <form method="post" action="{{ url_for('ventas.cambiar_mayorista', id=v.id) }}">
+          <button class="btn btn-sm {{ 'btn-primary' if v.vende_mayorista else 'btn-outline-secondary' }}">
+            {{ 'Sí' if v.vende_mayorista else 'No' }}</button>
+        </form>
+      </td>
+      <td>
         <form method="post" action="{{ url_for('ventas.cambiar_estado', id=v.id) }}">
           <button class="btn btn-sm btn-outline-secondary">{{ 'Desactivar' if v.activa else 'Activar' }}</button>
         </form>
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="4" class="text-center text-muted">Aún no hay vendedoras.</td></tr>
+    <tr><td colspan="5" class="text-center text-muted">Aún no hay vendedoras.</td></tr>
     {% endfor %}
   </tbody>
 </table>
