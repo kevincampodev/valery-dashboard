@@ -7,7 +7,7 @@ from . import bp
 from ...extensions import db
 from ...models import Vendedora, Venta, Liquidacion, Documento, MEDIOS_PAGO, NETO_SQL
 from ...services.archivos import guardar_archivo
-from ...services.comisiones import quincena_de, etiqueta_quincena, calcular_comision
+from ...services.comisiones import quincena_de, etiqueta_quincena, calcular_comision, CANAL_COMISIONABLE
 from ...utils import a_pesos, a_fecha, a_bp, formato_pesos
 
 
@@ -20,7 +20,8 @@ def _leer_quincena(texto):
 
 def ventas_por_vendedora(inicio, fin):
     filas = (db.session.query(Venta.vendedora_id, func.sum(NETO_SQL))
-             .filter(Venta.fecha.between(inicio, fin), Venta.vendedora_id.isnot(None))
+             .filter(Venta.fecha.between(inicio, fin), Venta.vendedora_id.isnot(None),
+                     Venta.canal == CANAL_COMISIONABLE)
              .group_by(Venta.vendedora_id).all())
     return {vendedora_id: total or 0 for vendedora_id, total in filas}
 
@@ -118,7 +119,8 @@ def esquemas():
 def detalle(id):
     liq = db.get_or_404(Liquidacion, id)
     por_dia = (db.session.query(Venta.fecha, func.sum(NETO_SQL))
-               .filter(Venta.vendedora_id == liq.vendedora_id, Venta.fecha.between(liq.inicio, liq.fin))
+               .filter(Venta.vendedora_id == liq.vendedora_id, Venta.fecha.between(liq.inicio, liq.fin),
+                       Venta.canal == CANAL_COMISIONABLE)
                .group_by(Venta.fecha).order_by(Venta.fecha).all())
     return render_template("comisiones/detalle.html", liq=liq, por_dia=por_dia,
                            titulo=etiqueta_quincena(liq.inicio, liq.fin),
