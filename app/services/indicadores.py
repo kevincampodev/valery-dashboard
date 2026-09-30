@@ -45,3 +45,15 @@ def vencimientos_por_semana(facturas, hoy, semanas=8):
         valores[i] += f.saldo
 
     return etiquetas, valores
+
+
+def clientes_sin_comprar(clientes, hoy, dias=45, limite=5):
+    """
+    clientes: lista de (cliente, fecha_ultima_compra, total_comprado).
+    Devuelve los que llevan más de `dias` sin comprar, del más olvidado al más reciente.
+    """
+    frios = []
+    for cliente, ultima, total in clientes:
+        if ultima and (hoy - ultima).days > dias:
+            frios.append({"cliente": cliente, "ultima": ultima, "total": total, "dias": (hoy - ultima).days})
+    return sorted(frios, key=lambda x: -x["dias"])[:limite]
