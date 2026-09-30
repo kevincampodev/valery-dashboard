@@ -47,8 +47,8 @@
 </div>
 
 <div class="row g-3 mb-4">
-  {% for titulo_tabla, datos in [('Por vendedora', r.por_vendedora), ('Por medio de pago', r.por_medio)] %}
-  <div class="col-md-6">
+  {% for titulo_tabla, datos in [('Por vendedora', r.por_vendedora), ('Por medio de pago', r.por_medio), ('Por medio de contacto', r.por_contacto)] %}
+  <div class="col-md-4">
     <div class="card card-body shadow-sm h-100">
       <h6>{{ titulo_tabla }}</h6>
       <table class="table table-sm mb-0">

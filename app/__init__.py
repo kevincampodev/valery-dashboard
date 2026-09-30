@@ -41,8 +41,9 @@ def create_app(config_class=Config):
                    proyecciones, pagos, marketing, documentos, reportes, sistema):
         app.register_blueprint(modulo.bp)
 
-    from .cli import seed_demo
+    from .cli import seed_demo, importar_ventas
     app.cli.add_command(seed_demo)
+    app.cli.add_command(importar_ventas)
 
     # Filtros de plantilla
     app.add_template_filter(formato_pesos, "pesos")
