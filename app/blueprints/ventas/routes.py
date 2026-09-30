@@ -6,7 +6,7 @@ from sqlalchemy.orm import joinedload
 
 from . import bp
 from ...extensions import db
-from ...models import Venta, Vendedora, CANALES, MEDIOS_VENTA
+from ...models import Venta, Vendedora, CANALES, MEDIOS_VENTA, MEDIOS_CONTACTO
 from ...services.ventas import resumen_mes
 from ...utils import a_pesos, a_fecha, formato_pesos, mes_desde_texto, rango_mes, nombre_mes
 
@@ -48,20 +48,23 @@ def dia(fecha):
     if request.method == "POST":
         f = request.form
         filas = zip(f.getlist("canal"), f.getlist("vendedora_id"), f.getlist("medio_pago"),
-                    f.getlist("tipo"), f.getlist("valor"), f.getlist("prendas"))
+                    f.getlist("tipo"), f.getlist("valor"), f.getlist("prendas"), f.getlist("medio_contacto"))
 
         nuevas, errores = [], []
-        for n, (canal, vendedora_id, medio, tipo, valor, prendas) in enumerate(filas, start=1):
+        for n, (canal, vendedora_id, medio, tipo, valor, prendas, contacto) in enumerate(filas, start=1):
             valor = a_pesos(valor)
             if valor <= 0:
                 continue  # fila vacía: se ignora
             vendedora_id = int(vendedora_id) if vendedora_id else None
+            if contacto not in MEDIOS_CONTACTO:
+                errores.append(f"Fila {n}: falta el medio de contacto.")
+                continue
             if canal not in CANALES or medio not in MEDIOS_VENTA or (vendedora_id and vendedora_id not in ids_validos):
                 errores.append(f"Fila {n}: datos inválidos.")
                 continue
             nuevas.append(Venta(
                 fecha=fecha_venta, canal=canal, vendedora_id=vendedora_id, medio_pago=medio,
-                valor=valor, prendas=int(prendas) if prendas.isdigit() else None,
+                valor=valor, prendas=int(prendas) if prendas.isdigit() else None, medio_contacto=contacto,
                 es_devolucion=(tipo == "devolucion"),
             ))
 
@@ -86,6 +89,7 @@ def dia(fecha):
         vendedoras=vendedoras,
         canales=CANALES,
         medios=MEDIOS_VENTA,
+        contactos=MEDIOS_CONTACTO,
         anterior=(fecha_venta - timedelta(days=1)).isoformat(),
         siguiente=(fecha_venta + timedelta(days=1)).isoformat(),
     )
