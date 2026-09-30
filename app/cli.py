@@ -2,9 +2,13 @@ import random
 from datetime import date, timedelta
 
 import click
+from flask import current_app
 from flask.cli import with_appcontext
 
 from .extensions import db
+from .services.backups import crear_backup
+from .services.importador_ventas import leer_revision, resumir
+from .utils import formato_pesos
 from .models import (Proveedor, Factura, Pago, AplicacionPago, Vendedora, Venta, Liquidacion, Meta,
                      TramoIncentivo, Objetivo, CuentaDinero, GastoRecurrente, AjusteTemporada, MEDIOS_PAGO)
 from .services.abonos import distribuir_fifo
@@ -118,3 +122,74 @@ def seed_demo():
 
     db.session.commit()
     click.echo(f"Datos demo creados: {len(proveedores)} proveedores, 14 facturas, {len(ventas)} registros de venta.")
+
+
+@click.command("importar-ventas")
+@click.argument("archivo", type=click.Path(exists=True, dir_okay=False))
+@click.option("--confirmar", is_flag=True, help="Guarda los cambios. Sin esta opción solo muestra la vista previa.")
+@click.option("--borrar-manuales", is_flag=True, help="Borra también las ventas registradas a mano en el mismo rango de fechas.")
+@with_appcontext
+def importar_ventas(archivo, confirmar, borrar_manuales):
+    """Importa ventas desde el archivo de revisión (hoja 'Ventas')."""
+    try:
+        ventas, omitidas = leer_revision(archivo)
+    except ValueError as e:
+        raise click.ClickException(str(e))
+    if not ventas:
+        raise click.ClickException("No se encontró ninguna venta para importar.")
+
+    desde = min(v["fecha"] for v in ventas)
+    hasta = max(v["fecha"] for v in ventas)
+    total = sum(v["valor"] for v in ventas)
+    click.echo(f"\n{len(ventas)} ventas por {formato_pesos(total)}, del {desde:%d/%m/%Y} al {hasta:%d/%m/%Y}")
+    for titulo, grupo in resumir(ventas).items():
+        click.echo(f"\n{titulo}")
+        for clave, valor in grupo.items():
+            click.echo(f"  {clave:<22}{formato_pesos(valor):>18}")
+    if omitidas:
+        click.secho(f"\n{len(omitidas)} fila(s) omitida(s):", fg="yellow")
+        for fila, motivo in omitidas:
+            click.echo(f"  Fila {fila}: {motivo}")
+
+    vendedoras = {v.nombre.lower(): v for v in Vendedora.query.all()}
+    nuevas = sorted({v["vendedora"] for v in ventas
+                     if v["vendedora"] and v["vendedora"].lower() not in vendedoras})
+    if nuevas:
+        click.echo(f"\nVendedoras nuevas (se crearán inactivas): {', '.join(nuevas)}")
+
+    rango = Venta.query.filter(Venta.fecha.between(desde, hasta))
+    anteriores = rango.filter_by(origen="excel").all()
+    manuales = rango.filter_by(origen="manual").all()
+    if anteriores:
+        click.echo(f"\nSe reemplazarán {len(anteriores)} ventas de una importación anterior.")
+    if manuales:
+        accion = "SE BORRARÁN" if borrar_manuales else "se conservarán (usa --borrar-manuales si eran de prueba)"
+        click.secho(f"\nOjo: hay {len(manuales)} ventas registradas a mano en ese rango, por "
+                    f"{formato_pesos(sum(v.neto for v in manuales))}: {accion}.", fg="yellow")
+
+    if not confirmar:
+        click.secho("\nVista previa: no se guardó nada. Para importar, repite el comando con --confirmar.", fg="cyan")
+        return
+
+    ruta_backup = crear_backup(current_app.config["DB_PATH"], current_app.config["BACKUP_DIR"])
+    click.echo(f"\nBackup previo: {ruta_backup}")
+
+    for nombre in nuevas:
+        vendedora = Vendedora(nombre=nombre, activa=False)
+        db.session.add(vendedora)
+        vendedoras[nombre.lower()] = vendedora
+
+    for venta in anteriores + (manuales if borrar_manuales else []):
+        db.session.delete(venta)
+
+    for dato in ventas:
+        db.session.add(Venta(
+            fecha=dato["fecha"], canal=dato["canal"], valor=dato["valor"], medio_pago="Otro",
+            medio_contacto=dato["medio_contacto"], origen="excel",
+            vendedora=vendedoras.get((dato["vendedora"] or "").lower()),
+        ))
+    db.session.commit()
+
+    click.secho(f"\nListo: {len(ventas)} ventas importadas.", fg="green")
+    if nuevas:
+        click.echo("Activa en Ventas → Vendedoras a quienes sigan trabajando.")

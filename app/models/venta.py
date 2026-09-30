@@ -6,6 +6,7 @@ from ..extensions import db
 
 CANALES = ["Minorista", "Mayorista"]
 MEDIOS_VENTA = ["Efectivo", "Transferencia", "Datáfono", "Crédito", "Otro"]
+MEDIOS_CONTACTO = ["Orgánico", "TikTok", "Voz a voz", "Otro"]
 
 
 class Vendedora(db.Model):
@@ -41,6 +42,8 @@ class Venta(db.Model):
     valor = db.Column(db.Integer, nullable=False)
     prendas = db.Column(db.Integer)
     es_devolucion = db.Column(db.Boolean, default=False, nullable=False)
+    medio_contacto = db.Column(db.String(20))
+    origen = db.Column(db.String(10), nullable=False, default="manual", server_default="manual")
     creado_en = db.Column(db.DateTime, default=datetime.now)
 
     vendedora = db.relationship("Vendedora", back_populates="ventas")
