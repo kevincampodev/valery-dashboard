@@ -4,13 +4,16 @@ from datetime import date, timedelta
 import click
 from flask import current_app
 from flask.cli import with_appcontext
+from sqlalchemy.orm import joinedload
 
 from .extensions import db
 from .services.backups import crear_backup
 from .services.importador_ventas import leer_revision, resumir
+from .services.mayoristas import es_mayorista, UMBRAL_MAYORISTA_DEFECTO
 from .utils import formato_pesos
 from .models import (Proveedor, Factura, Pago, AplicacionPago, Vendedora, Venta, Liquidacion, Meta,
-                     TramoIncentivo, Objetivo, CuentaDinero, GastoRecurrente, AjusteTemporada, MEDIOS_PAGO)
+                     TramoIncentivo, Objetivo, CuentaDinero, GastoRecurrente, AjusteTemporada, MEDIOS_PAGO,
+                     Parametro)
 from .services.abonos import distribuir_fifo
 from .services.comisiones import quincena_de, calcular_comision
 
@@ -193,3 +196,42 @@ def importar_ventas(archivo, confirmar, borrar_manuales):
     click.secho(f"\nListo: {len(ventas)} ventas importadas.", fg="green")
     if nuevas:
         click.echo("Activa en Ventas → Vendedoras a quienes sigan trabajando.")
+
+
+@click.command("reclasificar-canal")
+@click.option("--confirmar", is_flag=True, help="Guarda los cambios. Sin esta opción solo muestra la vista previa.")
+@with_appcontext
+def reclasificar_canal(confirmar):
+    """Aplica la regla de venta mayorista a las ventas importadas desde Excel."""
+    if not Vendedora.query.filter_by(vende_mayorista=True).first():
+        raise click.ClickException("Nadie tiene permiso de venta mayorista. Actívalo en Ventas → Vendedoras primero.")
+
+    umbral = Parametro.obtener_int("umbral_mayorista", UMBRAL_MAYORISTA_DEFECTO)
+    ventas = Venta.query.options(joinedload(Venta.vendedora)).filter_by(origen="excel", es_devolucion=False).all()
+
+    cambios = []
+    for venta in ventas:
+        permiso = venta.vendedora.vende_mayorista if venta.vendedora else False
+        nuevo = "Mayorista" if es_mayorista(permiso, venta.valor, umbral) else "Minorista"
+        if nuevo != venta.canal:
+            cambios.append((venta, nuevo))
+
+    a_minorista = [v for v, nuevo in cambios if nuevo == "Minorista"]
+    a_mayorista = [v for v, nuevo in cambios if nuevo == "Mayorista"]
+    click.echo(f"\nRegla: mayorista si la vende alguien con permiso y pasa de {formato_pesos(umbral)}.")
+    click.echo(f"  Pasan a minorista: {len(a_minorista):>4} ventas  {formato_pesos(sum(v.valor for v in a_minorista)):>16}")
+    click.echo(f"  Pasan a mayorista: {len(a_mayorista):>4} ventas  {formato_pesos(sum(v.valor for v in a_mayorista)):>16}")
+
+    if not cambios:
+        click.secho("\nNo hay nada que cambiar.", fg="green")
+        return
+    if not confirmar:
+        click.secho("\nVista previa: no se guardó nada. Para aplicar, repite el comando con --confirmar.", fg="cyan")
+        return
+
+    ruta_backup = crear_backup(current_app.config["DB_PATH"], current_app.config["BACKUP_DIR"])
+    click.echo(f"\nBackup previo: {ruta_backup}")
+    for venta, nuevo in cambios:
+        venta.canal = nuevo
+    db.session.commit()
+    click.secho(f"Listo: {len(cambios)} ventas reclasificadas.", fg="green")

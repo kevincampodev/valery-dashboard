@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">{{ cliente.nombre }} {% if not cliente.activo %}<span class="badge bg-secondary">Inactivo</span>{% endif %}</h2>
+  <div>
+    <a href="{{ url_for('mayoristas.nueva_venta', cliente=cliente.id) }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nueva venta</a>
+    <a href="{{ url_for('mayoristas.index') }}" class="btn btn-link">Volver</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-4">
+    <form method="post" action="{{ url_for('mayoristas.editar_cliente', id=cliente.id) }}" class="card card-body shadow-sm">
+      <h6>Datos</h6>
+      <input name="nombre" class="form-control mb-2" value="{{ cliente.nombre }}" required>
+      <input name="documento" class="form-control mb-2" value="{{ cliente.documento or '' }}" placeholder="Cédula o NIT">
+      <input name="telefono" class="form-control mb-2" value="{{ cliente.telefono or '' }}" placeholder="Teléfono">
+      <input name="ciudad" class="form-control mb-2" value="{{ cliente.ciudad or '' }}" placeholder="Ciudad">
+      <textarea name="notas" class="form-control mb-2" rows="2" placeholder="Notas">{{ cliente.notas or '' }}</textarea>
+      <div class="form-check mb-2">
+        <input type="checkbox" name="activo" id="activo" class="form-check-input" {{ 'checked' if cliente.activo }}>
+        <label for="activo" class="form-check-label">Activo</label>
+      </div>
+      <button class="btn btn-outline-primary btn-sm">Guardar cambios</button>
+    </form>
+  </div>
+  <div class="col-lg-8">
+    <div class="row g-3 mb-3">
+      <div class="col-md-6"><div class="card card-body border-start border-4 border-success shadow-sm">
+        <small class="text-muted">Total comprado</small><h4 class="text-success mb-0">{{ total|pesos }}</h4>
+      </div></div>
+      <div class="col-md-6"><div class="card card-body border-start border-4 border-primary shadow-sm">
+        <small class="text-muted">Compras</small><h4 class="mb-0">{{ ventas|length }}</h4>
+      </div></div>
+    </div>
+    <div class="card card-body shadow-sm">
+      <h6>Precios que se le han dado</h6>
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Referencia</th><th class="text-end">Último precio</th><th>Fecha</th><th class="text-end">Unidades</th><th class="text-end">Promedio</th></tr></thead>
+        <tbody>
+          {% for ref, p in precios.items() %}
+          <tr><td>{{ ref }}</td><td class="text-end fw-bold">{{ p.ultimo|pesos }}</td><td>{{ p.fecha_ultimo.strftime('%d/%m/%Y') }}</td>
+              <td class="text-end">{{ p.unidades }}</td><td class="text-end">{{ p.promedio|pesos }}</td></tr>
+          {% else %}
+          <tr><td colspan="5" class="text-muted">Sin compras con detalle todavía.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<h5>Historial de compras</h5>
+{% for v in ventas %}
+<div class="card shadow-sm mb-2">
+  <div class="card-header d-flex justify-content-between">
+    <span>{{ v.fecha.strftime('%d/%m/%Y') }} · {{ v.vendedora.nombre if v.vendedora else '—' }} · {{ v.medio_pago }}</span>
+    <strong>{{ v.valor|pesos }}</strong>
+  </div>
+  {% if v.lineas %}
+  <table class="table table-sm mb-0">
+    {% for l in v.lineas %}
+    <tr><td class="ps-3">Ref. {{ l.referencia }}</td><td class="text-end">{{ l.cantidad }} × {{ l.precio_unitario|pesos }}</td><td class="text-end pe-3">{{ l.subtotal|pesos }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</div>
+{% else %}
+<p class="text-muted">Este cliente aún no tiene compras registradas.</p>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="mb-3"><i class="bi bi-shop"></i> Nueva venta mayorista</h2>
+
+{% if not vendedores %}
+<div class="alert alert-warning">Nadie tiene permiso de venta mayorista. Actívalo en
+  <a href="{{ url_for('ventas.vendedoras') }}">Ventas → Vendedoras</a>.</div>
+{% endif %}
+
+<form method="post" class="card card-body shadow-sm" id="formVenta">
+  <div class="row g-3">
+    <div class="col-md-3">
+      <label class="form-label">Fecha *</label>
+      <input type="date" name="fecha" class="form-control" value="{{ form.get('fecha', hoy.isoformat()) }}" required>
+    </div>
+    <div class="col-md-5">
+      <label class="form-label">Cliente *</label>
+      <select name="cliente_id" id="cliente" class="form-select">
+        <option value="">— Cliente nuevo —</option>
+        {% for c in clientes %}
+        <option value="{{ c.id }}" {{ 'selected' if (form.get('cliente_id')|int == c.id) or (cliente_inicial == c.id) }}>{{ c.nombre }}{{ ' · ' ~ c.ciudad if c.ciudad }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4" id="datosNuevo">
+      <label class="form-label">Si es nuevo: nombre y teléfono</label>
+      <div class="input-group">
+        <input name="nuevo_nombre" class="form-control" placeholder="Nombre" value="{{ form.get('nuevo_nombre', '') }}">
+        <input name="nuevo_telefono" class="form-control" placeholder="Teléfono" value="{{ form.get('nuevo_telefono', '') }}">
+      </div>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Vendió *</label>
+      <select name="vendedora_id" class="form-select" required>
+        {% for v in vendedores %}<option value="{{ v.id }}" {{ 'selected' if form.get('vendedora_id')|int == v.id }}>{{ v.nombre }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Medio de pago *</label>
+      <select name="medio_pago" class="form-select" required>
+        <option value="">Selecciona...</option>
+        {% for m in medios %}<option {{ 'selected' if form.get('medio_pago') == m }}>{{ m }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">¿Cómo llegó? *</label>
+      <select name="medio_contacto" class="form-select" required>
+        <option value="">Selecciona...</option>
+        {% for c in contactos %}<option {{ 'selected' if form.get('medio_contacto') == c }}>{{ c }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+    <h6 class="mb-0">Prendas</h6>
+    <span>Total: <strong id="total" class="fs-5">$0</strong></span>
+  </div>
+  <table class="table table-sm align-middle">
+    <thead><tr><th style="width:24%">Referencia</th><th style="width:12%">Cantidad</th><th style="width:20%">Precio unitario</th><th>Último precio</th><th class="text-end">Subtotal</th><th></th></tr></thead>
+    <tbody id="lineas">
+      {% for ref, cant, precio in lineas_form %}
+      <tr>
+        <td><input name="referencia" class="form-control form-control-sm ref" value="{{ ref }}"></td>
+        <td><input name="cantidad" type="number" min="1" class="form-control form-control-sm cant" value="{{ cant }}"></td>
+        <td><input name="precio" class="form-control form-control-sm precio" inputmode="numeric" value="{{ precio }}"></td>
+        <td class="small text-muted sugerencia"></td>
+        <td class="text-end subtotal">$0</td>
+        <td><button type="button" class="btn btn-sm btn-outline-secondary quitar"><i class="bi bi-x"></i></button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div>
+    <button type="button" id="agregar" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plus"></i> Agregar prenda</button>
+    <button class="btn btn-primary btn-sm"><i class="bi bi-save"></i> Guardar venta</button>
+  </div>
+</form>
+
+<template id="plantillaLinea">
+  <tr>
+    <td><input name="referencia" class="form-control form-control-sm ref" placeholder="Ej: 9200"></td>
+    <td><input name="cantidad" type="number" min="1" class="form-control form-control-sm cant"></td>
+    <td><input name="precio" class="form-control form-control-sm precio" inputmode="numeric"></td>
+    <td class="small text-muted sugerencia"></td>
+    <td class="text-end subtotal">$0</td>
+    <td><button type="button" class="btn btn-sm btn-outline-secondary quitar"><i class="bi bi-x"></i></button></td>
+  </tr>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const lineas = document.getElementById('lineas');
+  const plantilla = document.getElementById('plantillaLinea');
+  const cliente = document.getElementById('cliente');
+  const datosNuevo = document.getElementById('datosNuevo');
+  const urlPrecio = '{{ url_for("mayoristas.precio") }}';
+  const pesos = v => '$' + Math.round(v).toLocaleString('es-CO');
+  const numero = texto => parseInt((texto || '').split(',')[0].replace(/\D/g, '')) || 0;
+
+  function recalcular() {
+    let total = 0;
+    lineas.querySelectorAll('tr').forEach(tr => {
+      const subtotal = numero(tr.querySelector('.cant').value) * numero(tr.querySelector('.precio').value);
+      tr.querySelector('.subtotal').textContent = pesos(subtotal);
+      total += subtotal;
+    });
+    document.getElementById('total').textContent = pesos(total);
+  }
+
+  async function sugerirPrecio(tr) {
+    const ref = tr.querySelector('.ref').value.trim();
+    const celda = tr.querySelector('.sugerencia');
+    if (!ref) { celda.textContent = ''; return; }
+    const respuesta = await fetch(`${urlPrecio}?ref=${encodeURIComponent(ref)}&cliente=${cliente.value}`);
+    const datos = await respuesta.json();
+    const sugerido = datos.cliente || datos.general;
+    if (!sugerido) { celda.textContent = 'Primera vez que se vende'; return; }
+    celda.textContent = datos.cliente
+      ? `A este cliente: ${pesos(datos.cliente.precio)} (${datos.cliente.fecha})`
+      : `A mayoristas: ${pesos(datos.general.precio)} (${datos.general.fecha})`;
+    const precio = tr.querySelector('.precio');
+    if (!precio.value) { precio.value = sugerido.precio; recalcular(); }
+  }
+
+  function agregarLinea() { lineas.appendChild(plantilla.content.cloneNode(true)); }
+  function mostrarNuevo() { datosNuevo.style.visibility = cliente.value ? 'hidden' : 'visible'; }
+
+  document.getElementById('agregar').addEventListener('click', agregarLinea);
+  lineas.addEventListener('input', recalcular);
+  lineas.addEventListener('change', e => { if (e.target.classList.contains('ref')) sugerirPrecio(e.target.closest('tr')); });
+  lineas.addEventListener('click', e => {
+    if (e.target.closest('.quitar')) { e.target.closest('tr').remove(); recalcular(); }
+  });
+  cliente.addEventListener('change', () => {
+    mostrarNuevo();
+    lineas.querySelectorAll('tr').forEach(sugerirPrecio);
+  });
+
+  if (!lineas.children.length) for (let i = 0; i < 3; i++) agregarLinea();
+  mostrarNuevo();
+  recalcular();
+</script>
+{% endblock %}
