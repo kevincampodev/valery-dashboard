@@ -3,7 +3,9 @@ from datetime import date
 
 from ..utils import MESES
 
-# Regla de la administración: solo las ventas minoristas generan comisión. Las mayoristas nunca.
+# Reglas de la administración:
+# - Solo las ventas minoristas generan comisión. Las mayoristas nunca.
+# - Las devoluciones NO descuentan comisión (pueden deberse a motivos ajenos a la vendedora).
 CANAL_COMISIONABLE = "Minorista"
 
 
