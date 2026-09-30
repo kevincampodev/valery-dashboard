@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block content %}
+{% set colores = {'rentable': 'success', 'pérdida': 'danger', 'sin pauta': 'secondary'} %}
+{% macro retorno(valor) %}{{ ('$' ~ '%.2f'|format(valor)|replace('.', ',')) if valor is not none else '—' }}{% endmacro %}
+
+<h2 class="mb-1">Rentabilidad de la publicidad · {{ canal }}</h2>
+<p class="text-muted mb-4">Compara lo invertido en pauta con la ganancia que dejaron las ventas de clientes que llegaron por {{ canal }}.</p>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-4">
+    <div class="card card-body shadow-sm h-100">
+      <form method="post" action="{{ url_for('marketing.guardar_margen') }}" class="d-flex gap-2 align-items-end mb-2">
+        <div>
+          <label class="form-label small mb-0">Margen de ganancia (%)</label>
+          <input name="margen" class="form-control" value="{{ (margen_bp|porcentaje)[:-1] }}" style="max-width:120px">
+        </div>
+        <button class="btn btn-outline-primary">Guardar</button>
+      </form>
+      <small class="text-muted">Con este margen, cada $1 de pauta debe vender al menos
+        <strong>{{ retorno(equilibrio) }}</strong> para no perder plata.</small>
+    </div>
+  </div>
+  {% for titulo, valor, color in [
+      ('Invertido en pauta', total.inversion|pesos, 'primary'),
+      ('Ventas por ' ~ canal, total.ventas|pesos, 'info'),
+      ('Resultado acumulado', total.resultado|pesos, 'success' if total.resultado > 0 else 'danger')] %}
+  <div class="col-lg-{{ 3 if loop.last else 2 }} col-md-4">
+    <div class="card card-body shadow-sm h-100 border-start border-4 border-{{ color }}">
+      <small class="text-muted">{{ titulo }}</small>
+      <h5 class="text-{{ color }} mb-0">{{ valor }}</h5>
+    </div>
+  </div>
+  {% endfor %}
+  <div class="col-lg-1 col-md-12">
+    <div class="card card-body shadow-sm h-100 text-center">
+      <small class="text-muted">Por cada $1</small>
+      <h5 class="mb-0">{{ retorno(total.retorno) }}</h5>
+    </div>
+  </div>
+</div>
+
+<div class="card card-body shadow-sm mb-4">
+  <div style="height:280px"><canvas id="grafPauta"></canvas></div>
+</div>
+
+<div class="table-responsive mb-4">
+<table class="table table-sm align-middle">
+  <thead class="table-light">
+    <tr><th>Mes</th><th>Pauta</th><th class="text-end">Invertido</th><th class="text-end">Ventas {{ canal }}</th>
+        <th class="text-end">% del mes</th><th class="text-end">Por cada $1</th><th class="text-end">Ganancia ({{ margen_bp|porcentaje }})</th>
+        <th class="text-end">Comisiones</th><th class="text-end">Resultado</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for f in filas|reverse %}
+    <tr>
+      <td>{{ f.etiqueta }}</td>
+      <td class="small">
+        {% if f.pauta %}{{ f.pauta.valor_diario|pesos }}/día{% if f.pauta.dias %} × {{ f.pauta.dias }} días{% endif %}
+          <form method="post" action="{{ url_for('marketing.eliminar_pauta', id=f.pauta.id) }}" class="d-inline"
+                onsubmit="return confirm('¿Eliminar la pauta de {{ f.etiqueta }}?')">
+            <button class="btn btn-sm btn-link text-danger p-0 ms-1"><i class="bi bi-x-circle"></i></button>
+          </form>
+        {% else %}<span class="text-muted">Sin registrar</span>{% endif %}
+      </td>
+      <td class="text-end">{{ f.inversion|pesos }}</td>
+      <td class="text-end">{{ f.ventas|pesos }}</td>
+      <td class="text-end">{{ f.participacion }}%</td>
+      <td class="text-end fw-bold {{ 'text-success' if f.retorno and f.retorno >= equilibrio else 'text-danger' if f.retorno else '' }}">{{ retorno(f.retorno) }}</td>
+      <td class="text-end">{{ f.ganancia_bruta|pesos }}</td>
+      <td class="text-end">{{ f.comisiones|pesos }}</td>
+      <td class="text-end fw-bold text-{{ 'success' if f.resultado > 0 else 'danger' }}">{{ f.resultado|pesos }}</td>
+      <td><span class="badge bg-{{ colores[f.estado] }}">{{ f.estado|capitalize }}</span></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="10" class="text-center text-muted py-4">Registra la pauta y las ventas con medio de contacto {{ canal }} para ver la rentabilidad.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<div class="card card-body shadow-sm mb-3">
+  <h6>Registrar pauta</h6>
+  <form method="post" action="{{ url_for('marketing.guardar_pauta') }}" class="row g-2 align-items-end">
+    <div class="col-md-3"><label class="form-label small mb-0">Desde</label><input type="month" name="desde" class="form-control" required></div>
+    <div class="col-md-3"><label class="form-label small mb-0">Hasta (opcional)</label><input type="month" name="hasta" class="form-control"></div>
+    <div class="col-md-3"><label class="form-label small mb-0">Valor diario</label><input name="valor_diario" class="form-control" placeholder="120000" required></div>
+    <div class="col-md-2"><label class="form-label small mb-0">Días (opcional)</label><input name="dias" type="number" min="1" max="31" class="form-control" placeholder="Todo el mes"></div>
+    <div class="col-md-1"><button class="btn btn-primary w-100"><i class="bi bi-save"></i></button></div>
+  </form>
+  <small class="text-muted mt-2">Un rango aplica el mismo valor a cada mes. Si un mes ya tenía pauta, se actualiza. El mes en curso cuenta solo hasta hoy.</small>
+</div>
+
+<p class="small text-muted">Atribución: una venta cuenta como {{ canal }} cuando la vendedora registra que el cliente llegó por ahí.
+  La calidad de este análisis depende de preguntarlo siempre. Ganancia = ventas × margen; el resultado resta además la pauta y las comisiones de esas ventas.</p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const g = {{ grafica|tojson }};
+  const pesos = v => (v < 0 ? '-$' : '$') + Math.abs(Math.round(v)).toLocaleString('es-CO');
+  const millones = v => (v < 0 ? '-$' : '$') + (Math.abs(v) / 1e6).toLocaleString('es-CO', { maximumFractionDigits: 1 }) + 'M';
+  new Chart(document.getElementById('grafPauta'), {
+    data: {
+      labels: g.etiquetas,
+      datasets: [
+        { type: 'bar', label: 'Invertido en pauta', data: g.inversion, backgroundColor: '#dc3545' },
+        { type: 'bar', label: 'Ganancia de las ventas (sin comisiones)', data: g.ganancia, backgroundColor: '#20c997' },
+        { type: 'line', label: 'Resultado', data: g.resultado, borderColor: '#0d6efd', tension: 0.2, pointRadius: 5,
+          pointBackgroundColor: g.resultado.map(v => v < 0 ? '#dc3545' : '#198754') },
+      ],
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: { tooltip: { callbacks: { label: c => c.dataset.label + ': ' + pesos(c.raw) } } },
+      scales: { y: { ticks: { callback: millones } } },
+    },
+  });
+</script>
+{% endblock %}

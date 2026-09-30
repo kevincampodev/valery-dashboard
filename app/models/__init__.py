@@ -7,3 +7,4 @@ from .meta import Meta, TramoIncentivo, Objetivo
 from .liquidacion import Liquidacion
 from .finanzas import CuentaDinero, GastoRecurrente, AjusteTemporada, FRECUENCIAS, CATEGORIAS_GASTO
 from .bitacora import Bitacora
+from .marketing import InversionPublicidad, Parametro
