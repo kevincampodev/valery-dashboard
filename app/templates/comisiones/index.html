@@ -35,7 +35,7 @@
 <div class="table-responsive">
 <table class="table align-middle">
   <thead class="table-light">
-    <tr><th>Vendedora</th><th class="text-end">Ventas netas</th><th>Tasa</th><th class="text-end">Comisión</th>
+    <tr><th>Vendedora</th><th class="text-end">Ventas minoristas</th><th>Tasa</th><th class="text-end">Comisión</th>
         <th class="text-end">Bono</th><th class="text-end">Total</th><th>Estado</th><th></th></tr>
   </thead>
   <tbody>
@@ -53,7 +53,8 @@
       </td>
       <td class="text-end fw-bold">{{ (liq.total if liq else f.calculo.total)|pesos }}</td>
       <td>
-        {% if not liq %}<span class="badge bg-secondary">Sin liquidar</span>
+        {% if not liq and not f.vendedora.tasa_comision_bp and not f.vendedora.bono_meta %}<span class="badge bg-light text-dark border">No comisiona</span>
+        {% elif not liq %}<span class="badge bg-secondary">Sin liquidar</span>
         {% elif liq.estado == 'pagada' and liq.tiene_soporte %}<span class="badge bg-success">Pagada <i class="bi bi-file-check"></i></span>
         {% elif liq.estado == 'pagada' %}<span class="badge bg-warning text-dark">Pagada · sin soporte</span>
         {% else %}<span class="badge bg-primary">Por pagar</span>{% endif %}
@@ -62,7 +63,7 @@
       <td>
         {% if liq %}
         <a href="{{ url_for('comisiones.detalle', id=liq.id) }}" class="btn btn-sm btn-outline-primary">Ver</a>
-        {% else %}
+        {% elif f.vendedora.tasa_comision_bp or f.vendedora.bono_meta %}
         <form method="post" action="{{ url_for('comisiones.liquidar') }}">
           <input type="hidden" name="q" value="{{ inicio.isoformat() }}">
           <input type="hidden" name="vendedora_id" value="{{ f.vendedora.id }}">

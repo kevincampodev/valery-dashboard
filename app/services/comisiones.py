@@ -3,6 +3,11 @@ from datetime import date
 
 from ..utils import MESES
 
+# Reglas de la administración:
+# - Solo las ventas minoristas generan comisión. Las mayoristas nunca.
+# - Las devoluciones NO descuentan comisión (pueden deberse a motivos ajenos a la vendedora).
+CANAL_COMISIONABLE = "Minorista"
+
 
 def quincena_de(fecha):
     """Devuelve (inicio, fin) de la quincena que contiene `fecha`: 1-15 o 16-último día."""

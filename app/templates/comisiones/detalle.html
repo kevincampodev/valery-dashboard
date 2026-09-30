@@ -25,7 +25,7 @@
   <table class="table table-sm">
     <tr><th style="width:40%">Vendedora</th><td>{{ liq.vendedora.nombre }}</td></tr>
     <tr><th>Periodo</th><td>{{ titulo }}</td></tr>
-    <tr><th>Ventas netas del periodo</th><td>{{ liq.ventas_netas|pesos }}</td></tr>
+    <tr><th>Ventas minoristas del periodo</th><td>{{ liq.ventas_netas|pesos }}</td></tr>
     <tr><th>Comisión ({{ liq.tasa_bp|porcentaje }})</th><td>{{ liq.comision|pesos }}</td></tr>
     {% if liq.meta %}
     <tr><th>Bono por meta ({{ liq.meta|pesos }})</th><td>{{ liq.bono|pesos if liq.bono else 'No alcanzada' }}</td></tr>
