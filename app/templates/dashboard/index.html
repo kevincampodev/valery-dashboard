@@ -65,6 +65,61 @@
   </div>
 </div>
 
+<div class="row g-3 mb-4">
+  <div class="col-lg-4">
+    <div class="card card-body shadow-sm h-100">
+      <h6><i class="bi bi-diagram-2"></i> Ventas del mes por canal</h6>
+      {% set total_canales = canales_mes.values()|sum %}
+      {% for canal, valor in canales_mes.items() %}
+      <div class="d-flex justify-content-between mt-2">
+        <span>{{ canal }}</span><strong>{{ valor|pesos }}</strong>
+      </div>
+      <div class="progress" style="height:6px">
+        <div class="progress-bar {{ 'bg-primary' if canal == 'Minorista' else 'bg-info' }}"
+             style="width: {{ (valor * 100 / total_canales)|round|int if total_canales else 0 }}%"></div>
+      </div>
+      {% endfor %}
+      <a href="{{ url_for('ventas.index') }}" class="small mt-3">Ver ventas del mes →</a>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card card-body shadow-sm h-100">
+      <h6><i class="bi bi-megaphone"></i> TikTok este mes</h6>
+      <div class="d-flex justify-content-between mt-2"><span>Vendido por TikTok</span><strong>{{ tiktok.ventas|pesos }}</strong></div>
+      <div class="d-flex justify-content-between"><span>Pauta a la fecha</span><strong>{{ tiktok.inversion|pesos }}</strong></div>
+      {% if tiktok.retorno is not none %}
+      <div class="mt-2 p-2 rounded text-center {{ 'bg-success-subtle text-success' if tiktok.retorno >= tiktok.equilibrio else 'bg-danger-subtle text-danger' }}">
+        Por cada $1 invertido: <strong class="fs-5">${{ '%.2f'|format(tiktok.retorno) }}</strong>
+        <br><small>{{ 'Se está pagando sola' if tiktok.retorno >= tiktok.equilibrio else 'Por ahora no alcanza a pagarse' }}
+        (mínimo ${{ tiktok.equilibrio }})</small>
+      </div>
+      {% else %}
+      <p class="small text-muted mt-2 mb-0">No hay pauta registrada para este mes.</p>
+      {% endif %}
+      <a href="{{ url_for('marketing.index') }}" class="small mt-3">Ver rentabilidad →</a>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card card-body shadow-sm h-100">
+      <h6><i class="bi bi-person-exclamation"></i> Mayoristas que no han vuelto <small class="text-muted">(+{{ dias_sin_compra }} días)</small></h6>
+      {% for f in clientes_frios %}
+      <a href="{{ url_for('mayoristas.cliente', id=f.cliente.id) }}" class="d-flex justify-content-between text-decoration-none text-reset border-bottom py-1">
+        <span>{{ f.cliente.nombre }}<br><small class="text-muted">Última compra: {{ f.ultima.strftime('%d/%m/%Y') }}</small></span>
+        <span class="text-end"><span class="badge bg-warning text-dark">{{ f.dias }} días</span><br><small class="text-muted">{{ f.total|pesos }}</small></span>
+      </a>
+      {% else %}
+      <p class="small text-muted mt-2 mb-0">
+        {% if hay_clientes %}Todos los clientes mayoristas han comprado en los últimos {{ dias_sin_compra }} días. 👌
+        {% else %}Aún no hay clientes mayoristas registrados.{% endif %}
+      </p>
+      {% endfor %}
+      <a href="{{ url_for('mayoristas.index') }}" class="small mt-3">Ver mayoristas →</a>
+    </div>
+  </div>
+</div>
+
 <div class="row g-3">
   <div class="col-lg-7">
     <div class="card card-body shadow-sm h-100">
