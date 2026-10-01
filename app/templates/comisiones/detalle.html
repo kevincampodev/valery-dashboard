@@ -74,7 +74,7 @@
       <ul class="list-group list-group-flush mb-2">
         {% for d in liq.documentos %}
         <li class="list-group-item"><i class="bi bi-file-earmark-check text-success"></i>
-          <a href="{{ url_for('deudas.documento', id=d.id) }}" target="_blank">{{ d.nombre_original }}</a></li>
+          <a href="{{ url_for('documentos.ver', id=d.id) }}" target="_blank">{{ d.nombre_original }}</a></li>
         {% else %}
         <li class="list-group-item text-muted">Sin soporte todavía.</li>
         {% endfor %}

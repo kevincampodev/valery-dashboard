@@ -37,7 +37,7 @@
         {% for d in factura.documentos %}
         <li class="list-group-item">
           <i class="bi {{ 'bi-file-earmark-pdf text-danger' if d.tipo == 'pdf' else 'bi-file-earmark-code' if d.tipo == 'xml' else 'bi-file-earmark-image' }}"></i>
-          <a href="{{ url_for('deudas.documento', id=d.id) }}" target="_blank">{{ d.nombre_original }}</a>
+          <a href="{{ url_for('documentos.ver', id=d.id) }}" target="_blank">{{ d.nombre_original }}</a>
         </li>
         {% else %}
         <li class="list-group-item text-muted">Sin documentos</li>
