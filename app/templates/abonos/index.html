@@ -36,7 +36,7 @@
       </td>
       <td>
         {% for d in p.documentos %}
-        <a href="{{ url_for('deudas.documento', id=d.id) }}" target="_blank" title="{{ d.nombre_original }}"><i class="bi bi-paperclip"></i></a>
+        <a href="{{ url_for('documentos.ver', id=d.id) }}" target="_blank" title="{{ d.nombre_original }}"><i class="bi bi-paperclip"></i></a>
         {% else %}<span class="text-muted small">—</span>{% endfor %}
       </td>
       <td>
