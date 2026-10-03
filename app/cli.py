@@ -1,4 +1,7 @@
 import random
+import re
+import secrets
+import string
 from datetime import date, timedelta
 
 import click
@@ -9,11 +12,12 @@ from sqlalchemy.orm import joinedload
 from .extensions import db
 from .services.backups import crear_backup
 from .services.importador_ventas import leer_revision, resumir
+from .services.seguridad import normalizar_usuario, validar_password
 from .services.mayoristas import es_mayorista, UMBRAL_MAYORISTA_DEFECTO
 from .utils import formato_pesos
 from .models import (Proveedor, Factura, Pago, AplicacionPago, Vendedora, Venta, Liquidacion, Meta,
                      TramoIncentivo, Objetivo, CuentaDinero, GastoRecurrente, AjusteTemporada, MEDIOS_PAGO,
-                     Parametro)
+                     Parametro, Usuario)
 from .services.abonos import distribuir_fifo
 from .services.comisiones import quincena_de, calcular_comision
 
@@ -235,3 +239,79 @@ def reclasificar_canal(confirmar):
         venta.canal = nuevo
     db.session.commit()
     click.secho(f"Listo: {len(cambios)} ventas reclasificadas.", fg="green")
+
+
+def _password_temporal():
+    alfabeto = string.ascii_letters + string.digits
+    while True:
+        password = "".join(secrets.choice(alfabeto) for _ in range(14))
+        if not validar_password(password):
+            return password
+
+
+def _buscar_usuario(usuario):
+    encontrado = Usuario.query.filter_by(usuario=normalizar_usuario(usuario)).first()
+    if not encontrado:
+        raise click.ClickException(f"No existe el usuario '{usuario}'.")
+    return encontrado
+
+
+@click.command("crear-usuario")
+@click.argument("usuario")
+@click.option("--nombre", prompt="Nombre completo", help="Nombre que se muestra en el menú.")
+@with_appcontext
+def crear_usuario(usuario, nombre):
+    """Crea un administrador con una contraseña temporal."""
+    usuario = normalizar_usuario(usuario)
+    if not re.fullmatch(r"[a-z0-9._-]{3,40}", usuario):
+        raise click.ClickException("El usuario debe tener de 3 a 40 caracteres: letras, números, punto, guion o guion bajo.")
+    if Usuario.query.filter_by(usuario=usuario).first():
+        raise click.ClickException(f"Ya existe el usuario '{usuario}'.")
+
+    password = _password_temporal()
+    nuevo = Usuario(usuario=usuario, nombre=nombre.strip(), debe_cambiar_password=True)
+    nuevo.fijar_password(password)
+    db.session.add(nuevo)
+    db.session.commit()
+
+    click.secho(f"\nUsuario '{usuario}' creado.", fg="green")
+    click.echo(f"Contraseña temporal: {password}")
+    click.secho("Entrégasela en persona. Al ingresar deberá cambiarla y activar la verificación en dos pasos.", fg="yellow")
+
+
+@click.command("reiniciar-2fa")
+@click.argument("usuario")
+@with_appcontext
+def reiniciar_2fa(usuario):
+    """Quita la verificación en dos pasos (por ejemplo, si perdió el celular)."""
+    encontrado = _buscar_usuario(usuario)
+    encontrado.totp_activo = False
+    encontrado.totp_secreto = None
+    encontrado.version_sesion += 1
+    db.session.commit()
+    click.secho(f"2FA reiniciado para '{encontrado.usuario}'. Deberá activarlo de nuevo al ingresar.", fg="green")
+
+
+@click.command("desbloquear-usuario")
+@click.argument("usuario")
+@with_appcontext
+def desbloquear_usuario(usuario):
+    """Quita el bloqueo por intentos fallidos."""
+    encontrado = _buscar_usuario(usuario)
+    encontrado.intentos_fallidos = 0
+    encontrado.bloqueado_hasta = None
+    db.session.commit()
+    click.secho(f"'{encontrado.usuario}' desbloqueado.", fg="green")
+
+
+@click.command("desactivar-usuario")
+@click.argument("usuario")
+@click.option("--reactivar", is_flag=True, help="Vuelve a activar un usuario desactivado.")
+@with_appcontext
+def desactivar_usuario(usuario, reactivar):
+    """Desactiva (o reactiva) un usuario. Desactivar cierra sus sesiones al instante."""
+    encontrado = _buscar_usuario(usuario)
+    encontrado.activo = reactivar
+    encontrado.version_sesion += 1
+    db.session.commit()
+    click.secho(f"'{encontrado.usuario}' {'reactivado' if reactivar else 'desactivado'}.", fg="green")

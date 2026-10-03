@@ -22,13 +22,14 @@
 </form>
 
 <table class="table table-sm align-middle">
-  <thead class="table-light"><tr><th>Fecha</th><th>Acción</th><th>Registro</th><th>Detalle</th></tr></thead>
+  <thead class="table-light"><tr><th>Fecha</th><th>Acción</th><th>Usuario</th><th>Registro</th><th>Detalle</th></tr></thead>
   <tbody>
     {% for r in registros %}
     <tr>
       <td class="small text-nowrap">{{ r.fecha.strftime('%d/%m/%Y %H:%M:%S') }}</td>
       <td><span class="badge bg-{{ colores[r.accion] }}">{{ r.accion }}</span></td>
-      <td class="small">{{ nombres.get(r.tabla, r.tabla) }} #{{ r.registro_id }}</td>
+      <td class="small">{{ r.usuario or '—' }}</td>
+      <td class="small">{{ nombres.get(r.tabla, r.tabla) }} #{{ r.registro_id or 'nuevo' }}</td>
       <td class="small">
         {% if r.accion == 'editar' %}
           {% for campo, (antes, despues) in r.detalle.items() %}
@@ -42,7 +43,7 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="4" class="text-center text-muted py-4">Sin registros.</td></tr>
+    <tr><td colspan="5" class="text-center text-muted py-4">Sin registros.</td></tr>
     {% endfor %}
   </tbody>
 </table>

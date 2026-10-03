@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="mb-3"><i class="bi bi-person-gear"></i> Mi cuenta</h2>
+
+{% if usuario.debe_cambiar_password or not usuario.totp_activo %}
+<div class="alert alert-warning">
+  Para usar el sistema primero completa:
+  {% if usuario.debe_cambiar_password %}<strong>cambiar tu contraseña temporal</strong>{% endif %}
+  {% if usuario.debe_cambiar_password and not usuario.totp_activo %} y {% endif %}
+  {% if not usuario.totp_activo %}<strong>activar la verificación en dos pasos</strong>{% endif %}.
+</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <form method="post" action="{{ url_for('auth.cambiar_password') }}" class="card card-body shadow-sm h-100">
+      <h5><i class="bi bi-key"></i> Cambiar contraseña</h5>
+      <p class="small text-muted">Mínimo 10 caracteres, con letras y números. No puede contener tu usuario ni tu nombre.</p>
+      <input type="password" name="actual" class="form-control mb-2" placeholder="Contraseña actual" autocomplete="current-password" required>
+      <input type="password" name="nueva" class="form-control mb-2" placeholder="Nueva contraseña" autocomplete="new-password" minlength="10" required>
+      <input type="password" name="confirmar" class="form-control mb-3" placeholder="Confirmar nueva contraseña" autocomplete="new-password" minlength="10" required>
+      <button class="btn btn-primary">Guardar contraseña</button>
+    </form>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card card-body shadow-sm h-100">
+      <h5><i class="bi bi-phone"></i> Verificación en dos pasos</h5>
+      {% if usuario.totp_activo %}
+        <div class="alert alert-success mb-0"><i class="bi bi-shield-check"></i> Activa. Al ingresar se te pedirá el código del celular.</div>
+      {% else %}
+        <ol class="small ps-3">
+          <li>Instala <strong>Google Authenticator</strong> o <strong>Microsoft Authenticator</strong> en tu celular.</li>
+          <li>En la app, agrega una cuenta y escanea este código QR.</li>
+          <li>Escribe abajo el código de 6 dígitos que aparece.</li>
+        </ol>
+        <div class="text-center my-2" style="max-width:220px; margin:auto">{{ qr|safe }}</div>
+        <p class="small text-muted text-center">¿No puedes escanear? Escribe esta clave en la app:<br><code>{{ secreto }}</code></p>
+        <form method="post" action="{{ url_for('auth.activar_2fa') }}" class="d-flex gap-2">
+          <input name="codigo" class="form-control" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" maxlength="7" required>
+          <button class="btn btn-success">Activar</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card card-body shadow-sm mt-3">
+  <h5><i class="bi bi-clock-history"></i> Tus últimos accesos</h5>
+  <p class="small text-muted">Si ves un ingreso que no reconoces, cambia tu contraseña de inmediato y avisa.</p>
+  <table class="table table-sm mb-0">
+    <thead><tr><th>Fecha</th><th>Resultado</th><th>IP</th><th>Navegador</th></tr></thead>
+    <tbody>
+      {% for a in accesos %}
+      <tr>
+        <td class="small text-nowrap">{{ a.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td><span class="badge bg-{{ 'success' if a.exito else 'danger' }}">{{ a.motivo }}</span></td>
+        <td class="small">{{ a.ip }}</td>
+        <td class="small text-muted text-truncate" style="max-width:280px">{{ a.navegador }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="text-muted">Sin registros.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
