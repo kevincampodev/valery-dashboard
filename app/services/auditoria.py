@@ -36,6 +36,13 @@ def _cambios(obj):
     return cambios
 
 
+def _id_registro(obj):
+    """Id del registro. Algunas tablas usan otra llave (el mes, la clave); en esas devuelve None."""
+    identidad = inspect(obj).identity
+    valor = identidad[0] if identidad else None
+    return valor if isinstance(valor, int) else None
+
+
 def _usuario_actual():
     if has_request_context() and current_user and current_user.is_authenticated:
         return current_user.usuario
@@ -56,7 +63,7 @@ def _auditar(session, contexto):
                     "fecha": datetime.now(),
                     "accion": accion,
                     "tabla": tabla,
-                    "registro_id": obj.id,
+                    "registro_id": _id_registro(obj),
                     "usuario": usuario,
                     "cambios": json.dumps(cambios, default=str, ensure_ascii=False),
                 })
