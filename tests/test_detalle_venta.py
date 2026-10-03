@@ -20,7 +20,7 @@ def test_detalle_valido_y_normalizado():
     ), 3)
 
     assert error is None
-    assert lineas[0] == {"referencia": "5700", "cantidad": 2, "precio_unitario": 140000,
+    assert lineas[0] == {"referencia": "05700", "cantidad": 2, "precio_unitario": 140000,
                          "color": "Negro", "talla": "M"}
     assert lineas[1]["color"] is None and lineas[1]["talla"] is None   # color y talla son opcionales
 

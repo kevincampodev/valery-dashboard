@@ -12,6 +12,7 @@ from ...models import (Cliente, LineaVenta, Venta, Vendedora, Parametro, MEDIOS_
 from ...services.mayoristas import (normalizar_referencia, leer_lineas, total_lineas, historial_precios,
                                     UMBRAL_MAYORISTA_DEFECTO)
 from ...utils import a_fecha, a_pesos, formato_pesos, rango_mes
+from ...services.clientes import normalizar_telefono
 
 
 def umbral_mayorista():
@@ -21,7 +22,7 @@ def umbral_mayorista():
 @bp.route("/")
 def index():
     texto = request.args.get("q", "").strip()
-    consulta = Cliente.query
+    consulta = Cliente.query.filter_by(es_mayorista=True)
     if texto:
         patron = f"%{texto}%"
         consulta = consulta.filter(or_(Cliente.nombre.ilike(patron), Cliente.documento.ilike(patron),
@@ -67,8 +68,21 @@ def crear_cliente():
     if not nombre:
         flash("El cliente necesita un nombre.", "danger")
         return redirect(url_for("mayoristas.index"))
+    telefono_texto = f.get("telefono", "").strip()
+    telefono = normalizar_telefono(telefono_texto)
+    if telefono_texto and not telefono:
+        flash("El teléfono no es válido (deben ser 10 dígitos).", "danger")
+        return redirect(url_for("mayoristas.index"))
+
+    existente = Cliente.query.filter_by(telefono=telefono).first() if telefono else None
+    if existente:
+        existente.es_mayorista = True
+        db.session.commit()
+        flash(f"Ese teléfono ya era de {existente.nombre}: ahora queda también como mayorista.", "info")
+        return redirect(url_for("mayoristas.cliente", id=existente.id))
+
     cliente = Cliente(nombre=nombre, documento=f.get("documento", "").strip() or None,
-                      telefono=f.get("telefono", "").strip() or None, ciudad=f.get("ciudad", "").strip() or None)
+                      telefono=telefono, ciudad=f.get("ciudad", "").strip() or None, es_mayorista=True)
     db.session.add(cliente)
     try:
         db.session.commit()
@@ -101,7 +115,12 @@ def editar_cliente(id):
         return redirect(url_for("mayoristas.cliente", id=id))
     cliente.nombre = f.get("nombre").strip()
     cliente.documento = f.get("documento", "").strip() or None
-    cliente.telefono = f.get("telefono", "").strip() or None
+    telefono_texto = f.get("telefono", "").strip()
+    telefono = normalizar_telefono(telefono_texto)
+    if telefono_texto and not telefono:
+        flash("El teléfono no es válido (deben ser 10 dígitos).", "danger")
+        return redirect(url_for("mayoristas.cliente", id=id))
+    cliente.telefono = telefono
     cliente.ciudad = f.get("ciudad", "").strip() or None
     cliente.notas = f.get("notas", "").strip() or None
     cliente.activo = "activo" in f
@@ -117,7 +136,7 @@ def editar_cliente(id):
 @bp.route("/venta/nueva", methods=["GET", "POST"])
 def nueva_venta():
     vendedores = Vendedora.query.filter_by(activa=True, vende_mayorista=True).order_by(Vendedora.nombre).all()
-    clientes = Cliente.query.filter_by(activo=True).order_by(Cliente.nombre).all()
+    clientes = Cliente.query.filter_by(activo=True, es_mayorista=True).order_by(Cliente.nombre).all()
 
     if request.method == "POST":
         f = request.form
@@ -142,6 +161,9 @@ def nueva_venta():
         nuevo_nombre = f.get("nuevo_nombre", "").strip()
         if not cliente and not nuevo_nombre:
             errores.append("Selecciona el cliente o escribe el nombre de uno nuevo.")
+        telefono_nuevo_texto = f.get("nuevo_telefono", "").strip()
+        if not cliente and telefono_nuevo_texto and not normalizar_telefono(telefono_nuevo_texto):
+            errores.append("El teléfono del cliente nuevo no es válido (deben ser 10 dígitos).")
 
         if errores:
             for e in errores:
@@ -152,8 +174,13 @@ def nueva_venta():
                 lineas_form=list(zip(f.getlist("referencia"), f.getlist("cantidad"), f.getlist("precio"))))
 
         if not cliente:
-            cliente = Cliente(nombre=nuevo_nombre, telefono=f.get("nuevo_telefono", "").strip() or None)
-            db.session.add(cliente)
+            telefono_nuevo = normalizar_telefono(telefono_nuevo_texto)
+            cliente = Cliente.query.filter_by(telefono=telefono_nuevo).first() if telefono_nuevo else None
+            if cliente:
+                cliente.es_mayorista = True
+            else:
+                cliente = Cliente(nombre=nuevo_nombre, telefono=telefono_nuevo, es_mayorista=True)
+                db.session.add(cliente)
 
         venta = Venta(
             fecha=a_fecha(f.get("fecha")) or date.today(), canal="Mayorista", vendedora_id=vendedora_id,
