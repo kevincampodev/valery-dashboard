@@ -1,7 +1,9 @@
 from flask import render_template, request, redirect, url_for, flash, send_from_directory, current_app, abort
 
 from . import bp
-from ...models import Bitacora
+from datetime import datetime, timedelta
+
+from ...models import Bitacora, EventoAcceso
 from ...services.backups import crear_backup, listar_backups
 
 NOMBRES_TABLAS = {
@@ -10,7 +12,7 @@ NOMBRES_TABLAS = {
     "tramos_incentivo": "Tramo de incentivo", "objetivos": "Objetivo", "documentos": "Documento",
     "cuentas_dinero": "Cuenta de dinero", "gastos_recurrentes": "Gasto fijo", "ajustes_temporada": "Factor de temporada",
     "inversiones_publicidad": "Pauta publicitaria", "parametros": "Parámetro",
-    "clientes": "Cliente", "lineas_venta": "Línea de venta",
+    "clientes": "Cliente", "lineas_venta": "Línea de venta", "usuarios": "Usuario",
 }
 
 
@@ -49,3 +51,21 @@ def bitacora():
     return render_template("sistema/bitacora.html",
                            registros=consulta.order_by(Bitacora.id.desc()).limit(300).all(),
                            nombres=NOMBRES_TABLAS, tabla=tabla, accion=accion)
+
+
+@bp.route("/accesos")
+def accesos():
+    filtro = request.args.get("filtro", "")
+    consulta = EventoAcceso.query
+    if filtro == "fallidos":
+        consulta = consulta.filter_by(exito=False)
+    elif filtro == "exitosos":
+        consulta = consulta.filter_by(exito=True)
+
+    hace_24h = datetime.now() - timedelta(hours=24)
+    return render_template(
+        "sistema/accesos.html",
+        eventos=consulta.order_by(EventoAcceso.fecha.desc()).limit(300).all(),
+        fallidos_24h=EventoAcceso.query.filter(EventoAcceso.exito.is_(False), EventoAcceso.fecha >= hace_24h).count(),
+        filtro=filtro,
+    )

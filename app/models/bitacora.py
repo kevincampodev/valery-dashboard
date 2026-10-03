@@ -11,6 +11,7 @@ class Bitacora(db.Model):
     accion = db.Column(db.String(10), nullable=False)       # crear | editar | eliminar
     tabla = db.Column(db.String(40), nullable=False, index=True)
     registro_id = db.Column(db.Integer)
+    usuario = db.Column(db.String(40))          # quién hizo el cambio ("sistema" si fue un comando)
     cambios = db.Column(db.Text)                             # JSON
 
     @property

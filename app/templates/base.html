@@ -45,6 +45,16 @@
       </li>
       {% endfor %}
     </ul>
+    {% if current_user.is_authenticated %}
+    <div class="border-top border-secondary pt-3 mt-3 small">
+      <div class="text-secondary">Sesión de</div>
+      <div class="fw-bold mb-2">{{ current_user.nombre }}</div>
+      <a href="{{ url_for('auth.cuenta') }}" class="btn btn-sm btn-outline-light w-100 mb-2"><i class="bi bi-person-gear"></i> Mi cuenta</a>
+      <form method="post" action="{{ url_for('auth.logout') }}">
+        <button class="btn btn-sm btn-outline-danger w-100"><i class="bi bi-box-arrow-right"></i> Salir</button>
+      </form>
+    </div>
+    {% endif %}
   </nav>
 
   <main class="flex-grow-1 p-4">

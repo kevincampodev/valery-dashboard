@@ -9,3 +9,4 @@ from .finanzas import CuentaDinero, GastoRecurrente, AjusteTemporada, FRECUENCIA
 from .bitacora import Bitacora
 from .marketing import InversionPublicidad, Parametro
 from .cliente import Cliente, LineaVenta
+from .usuario import Usuario, EventoAcceso
