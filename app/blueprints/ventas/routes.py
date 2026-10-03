@@ -1,16 +1,50 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
-from flask import render_template, request, redirect, url_for, flash, abort
+from flask import render_template, request, redirect, url_for, flash, abort, jsonify
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload, selectinload
 
 from . import bp
 from ...extensions import db
-from ...models import Venta, Vendedora, Parametro, LineaVenta, CANALES, MEDIOS_VENTA, MEDIOS_CONTACTO
+from ...models import Venta, Vendedora, Parametro, LineaVenta, Cliente, CANALES, MEDIOS_VENTA, MEDIOS_CONTACTO
+from ...services.clientes import normalizar_telefono, formato_telefono
 from ...services.mayoristas import es_mayorista, total_lineas, UMBRAL_MAYORISTA_DEFECTO
 from ...services.detalle_venta import leer_detalle
 
 TALLAS_BASE = ["XS", "S", "M", "L", "XL", "XXL", "ÚNICA"]
+
+
+def _resolver_cliente(telefono_texto, nombre, autoriza):
+    """
+    Devuelve (cliente, error). Sin datos del cliente devuelve (None, None): es opcional.
+    Solo se guarda si hay teléfono válido y autorización de datos.
+    """
+    telefono_texto = (telefono_texto or "").strip()
+    nombre = " ".join((nombre or "").split())[:120]
+    if not telefono_texto and not nombre:
+        return None, None
+    if not telefono_texto:
+        return None, "para guardar al cliente hace falta su teléfono."
+    if not autoriza:
+        return None, "marca la autorización de datos del cliente, o borra sus datos."
+    telefono = normalizar_telefono(telefono_texto)
+    if not telefono:
+        return None, "el teléfono del cliente no es válido (deben ser 10 dígitos)."
+
+    cliente = Cliente.query.filter_by(telefono=telefono).first()
+    if cliente:
+        if nombre and cliente.nombre.startswith("Cliente "):
+            cliente.nombre = nombre
+        if not cliente.autoriza_datos:
+            cliente.autoriza_datos = True
+            cliente.fecha_autorizacion = datetime.now()
+        return cliente, None
+
+    cliente = Cliente(nombre=nombre or f"Cliente {formato_telefono(telefono)}", telefono=telefono,
+                      es_mayorista=False, autoriza_datos=True, fecha_autorizacion=datetime.now())
+    db.session.add(cliente)
+    return cliente, None
 from ...services.ventas import resumen_mes
 from ...utils import a_pesos, a_fecha, formato_pesos, mes_desde_texto, rango_mes, nombre_mes
 
@@ -53,12 +87,13 @@ def dia(fecha):
 
     if request.method == "POST":
         f = request.form
-        filas = zip(f.getlist("canal"), f.getlist("vendedora_id"), f.getlist("medio_pago"),
-                    f.getlist("tipo"), f.getlist("valor"), f.getlist("prendas"), f.getlist("medio_contacto"),
-                    f.getlist("detalle"))
+        filas = zip(f.getlist("vendedora_id"), f.getlist("medio_pago"), f.getlist("tipo"), f.getlist("valor"),
+                    f.getlist("prendas"), f.getlist("medio_contacto"), f.getlist("detalle"),
+                    f.getlist("cliente_telefono"), f.getlist("cliente_nombre"), f.getlist("cliente_autoriza"))
 
         nuevas, errores = [], []
-        for n, (canal, vendedora_id, medio, tipo, valor, prendas, contacto, detalle) in enumerate(filas, start=1):
+        for n, (vendedora_id, medio, tipo, valor, prendas, contacto, detalle,
+                telefono_cliente, nombre_cliente, autoriza) in enumerate(filas, start=1):
             cantidad_prendas = int(prendas) if prendas.isdigit() else 0
             lineas, error_detalle = leer_detalle(detalle, cantidad_prendas)
             if error_detalle:
@@ -75,11 +110,15 @@ def dia(fecha):
                 errores.append(f"Fila {n}: venta de {formato_pesos(valor)} hecha por quien vende al por mayor. "
                                f"Es mayorista: regístrala en Mayoristas → Nueva venta.")
                 continue
-            if canal != "Minorista" or medio not in MEDIOS_VENTA or (vendedora_id and vendedora_id not in ids_validos):
+            if medio not in MEDIOS_VENTA or (vendedora_id and vendedora_id not in ids_validos):
                 errores.append(f"Fila {n}: datos inválidos.")
                 continue
+            cliente, error_cliente = _resolver_cliente(telefono_cliente, nombre_cliente, autoriza == "1")
+            if error_cliente:
+                errores.append(f"Fila {n}: {error_cliente}")
+                continue
             venta = Venta(
-                fecha=fecha_venta, canal=canal, vendedora_id=vendedora_id, medio_pago=medio,
+                fecha=fecha_venta, canal="Minorista", vendedora_id=vendedora_id, medio_pago=medio, cliente=cliente,
                 valor=valor, prendas=int(prendas) if prendas.isdigit() else None, medio_contacto=contacto,
                 es_devolucion=(tipo == "devolucion"),
             )
@@ -97,7 +136,7 @@ def dia(fecha):
             flash(f"{len(nuevas)} registros guardados. Neto: {formato_pesos(sum(v.neto for v in nuevas))}.", "success")
         return redirect(url_for("ventas.dia", fecha=fecha))
 
-    registros = (Venta.query.options(joinedload(Venta.vendedora), selectinload(Venta.lineas))
+    registros = (Venta.query.options(joinedload(Venta.vendedora), joinedload(Venta.cliente), selectinload(Venta.lineas))
                  .filter_by(fecha=fecha_venta).order_by(Venta.id).all())
 
     tallas_usadas = [t for (t,) in db.session.query(LineaVenta.talla)
@@ -120,6 +159,7 @@ def dia(fecha):
         contactos=MEDIOS_CONTACTO,
         umbral=umbral,
         sugerencias=sugerencias,
+        detalles={v.id: _detalle_venta(v) for v in registros},
         anterior=(fecha_venta - timedelta(days=1)).isoformat(),
         siguiente=(fecha_venta + timedelta(days=1)).isoformat(),
     )
@@ -172,3 +212,43 @@ def cambiar_mayorista(id):
     estado = "ahora puede" if vendedora.vende_mayorista else "ya no puede"
     flash(f"{vendedora.nombre} {estado} registrar ventas mayoristas.", "info")
     return redirect(url_for("ventas.vendedoras"))
+
+
+@bp.route("/cliente")
+def buscar_cliente():
+    """JSON con los datos de un cliente por teléfono, para autocompletar el formulario."""
+    telefono = normalizar_telefono(request.args.get("telefono"))
+    if not telefono:
+        return jsonify({"valido": False})
+    cliente = Cliente.query.filter_by(telefono=telefono).first()
+    if not cliente:
+        return jsonify({"valido": True, "encontrado": False})
+    compras, ultima = (db.session.query(func.count(Venta.id), func.max(Venta.fecha))
+                       .filter(Venta.cliente_id == cliente.id).one())
+    return jsonify({
+        "valido": True,
+        "encontrado": True,
+        "nombre": cliente.nombre,
+        "compras": compras,
+        "ultima": ultima.strftime("%d/%m/%Y") if ultima else None,
+        "autorizado": cliente.autoriza_datos,
+    })
+
+
+def _detalle_venta(venta):
+    """Toda la información de una venta guardada, para mostrarla en el recuadro de detalle."""
+    return {
+        "hora": venta.creado_en.strftime("%I:%M %p") if venta.creado_en else "",
+        "cliente": venta.cliente.nombre if venta.cliente else None,
+        "telefono": formato_telefono(venta.cliente.telefono) if venta.cliente else None,
+        "vendedora": venta.vendedora.nombre if venta.vendedora else "Sin vendedora",
+        "medio": venta.medio_pago,
+        "contacto": venta.medio_contacto or "—",
+        "tipo": "Devolución" if venta.es_devolucion else "Venta",
+        "valor": venta.valor,
+        "prendas": venta.prendas,
+        "lineas": [{
+            "referencia": l.referencia, "color": l.color or "", "talla": l.talla or "",
+            "cantidad": l.cantidad, "precio": l.precio_unitario, "subtotal": l.subtotal,
+        } for l in venta.lineas],
+    }

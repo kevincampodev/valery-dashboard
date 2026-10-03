@@ -14,31 +14,33 @@
 
 {% if registros %}
 <div class="card card-body shadow-sm mb-4">
-  <h6>Registrado este día</h6>
-  <table class="table table-sm align-middle mb-0">
-    <thead><tr><th>Canal</th><th>Vendedora</th><th>Medio</th><th>Contacto</th><th>Tipo</th><th class="text-end">Prendas</th><th class="text-end">Valor</th><th></th></tr></thead>
-    <tbody>
-      {% for v in registros %}
-      <tr class="{{ 'table-danger' if v.es_devolucion }}">
-        <td>{{ v.canal }}</td>
-        <td>{{ v.vendedora.nombre if v.vendedora else '—' }}</td>
-        <td>{{ v.medio_pago }}</td>
-        <td>{{ v.medio_contacto or '—' }}</td>
-        <td>{{ 'Devolución' if v.es_devolucion else 'Venta' }}</td>
-        <td class="text-end">{{ v.prendas or '—' }}
-          {% if v.lineas %}<br><small class="text-muted">{% for l in v.lineas %}{{ l.referencia }}{{ ' ' ~ l.color if l.color }}{{ ' ' ~ l.talla if l.talla }} ×{{ l.cantidad }}{{ ', ' if not loop.last }}{% endfor %}</small>{% endif %}
-        </td>
-        <td class="text-end">{{ v.neto|pesos if not v.es_devolucion else '-' ~ v.valor|pesos }}</td>
-        <td>
-          <form method="post" action="{{ url_for('ventas.eliminar', id=v.id) }}" onsubmit="return confirm('¿Eliminar este registro?')">
-            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-    <tfoot><tr class="table-light"><th colspan="6" class="text-end">Neto del día</th><th class="text-end">{{ total|pesos }}</th><th></th></tr></tfoot>
-  </table>
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h6 class="mb-0">Registrado este día</h6>
+    <small class="text-muted"><i class="bi bi-hand-index"></i> Haz clic en una venta para ver su detalle</small>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead><tr><th>Cliente</th><th>Vendedora</th><th>Medio</th><th>Contacto</th><th class="text-end">Prendas</th><th class="text-end">Valor</th><th></th></tr></thead>
+      <tbody>
+        {% for v in registros %}
+        <tr class="fila-venta {{ 'table-danger' if v.es_devolucion }}" style="cursor:pointer" data-venta='{{ detalles[v.id]|tojson }}'>
+          <td>{{ v.cliente.nombre if v.cliente else '—' }}{% if v.es_devolucion %} <span class="badge bg-danger">Devolución</span>{% endif %}</td>
+          <td>{{ v.vendedora.nombre if v.vendedora else '—' }}</td>
+          <td>{{ v.medio_pago }}</td>
+          <td>{{ v.medio_contacto or '—' }}</td>
+          <td class="text-end">{{ v.prendas or '—' }}{% if v.lineas %} <i class="bi bi-list-ul text-muted" title="Tiene detalle de prendas"></i>{% endif %}</td>
+          <td class="text-end">{{ v.valor|pesos if not v.es_devolucion else '-' ~ v.valor|pesos }}</td>
+          <td class="text-end">
+            <form method="post" action="{{ url_for('ventas.eliminar', id=v.id) }}" class="d-inline" onsubmit="return confirm('¿Eliminar esta venta?')">
+              <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot><tr class="table-light"><th colspan="5" class="text-end">Neto del día</th><th class="text-end">{{ total|pesos }}</th><th></th></tr></tfoot>
+    </table>
+  </div>
 </div>
 {% endif %}
 
@@ -51,10 +53,15 @@
   {% if not vendedoras %}
   <div class="alert alert-info py-2">No hay vendedoras activas. <a href="{{ url_for('ventas.vendedoras') }}">Créalas aquí</a> o registra sin vendedora.</div>
   {% endif %}
-  <table class="table table-sm align-middle">
-    <thead><tr><th>Canal</th><th>Vendedora</th><th>Medio</th><th>Contacto</th><th>Tipo</th><th style="width:170px">Valor</th><th style="width:150px">Prendas</th><th></th></tr></thead>
-    <tbody id="filas"></tbody>
-  </table>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead><tr>
+        <th>Vendedora</th><th>¿Cómo llegó?</th><th>Medio de pago</th><th>Tipo</th>
+        <th style="width:150px">Valor</th><th style="width:90px">Prendas</th><th style="width:180px">Cliente y prendas</th><th></th>
+      </tr></thead>
+      <tbody id="filas"></tbody>
+    </table>
+  </div>
   <div>
     <button type="button" id="agregarFila" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plus"></i> Agregar fila</button>
     <button class="btn btn-primary btn-sm"><i class="bi bi-save"></i> Guardar</button>
@@ -63,63 +70,87 @@
 
 <template id="plantillaFila">
   <tr>
-    <td><select name="canal" class="form-select form-select-sm">{% for c in canales %}<option>{{ c }}</option>{% endfor %}</select></td>
     <td><select name="vendedora_id" class="form-select form-select-sm">
       <option value="">— Sin vendedora —</option>
       {% for v in vendedoras %}<option value="{{ v.id }}" data-mayorista="{{ 1 if v.vende_mayorista else 0 }}">{{ v.nombre }}</option>{% endfor %}
     </select></td>
-    <td><select name="medio_pago" class="form-select form-select-sm">{% for m in medios %}<option>{{ m }}</option>{% endfor %}</select></td>
     <td><select name="medio_contacto" class="form-select form-select-sm">
-      <option value="">¿Cómo llegó?</option>
+      <option value="">Selecciona…</option>
       {% for c in contactos %}<option>{{ c }}</option>{% endfor %}
     </select></td>
+    <td><select name="medio_pago" class="form-select form-select-sm">{% for m in medios %}<option>{{ m }}</option>{% endfor %}</select></td>
     <td><select name="tipo" class="form-select form-select-sm">
       <option value="venta">Venta</option><option value="devolucion">Devolución</option>
     </select></td>
     <td><input name="valor" class="form-control form-control-sm" inputmode="numeric"></td>
+    <td><input name="prendas" type="number" min="0" class="form-control form-control-sm"></td>
     <td>
-      <div class="input-group input-group-sm">
-        <input name="prendas" type="number" min="0" class="form-control">
-        <button type="button" class="btn btn-outline-secondary abrir-detalle" title="Detalle de prendas"><i class="bi bi-list-ul"></i></button>
-      </div>
+      <button type="button" class="btn btn-sm btn-outline-primary w-100 abrir-venta"><i class="bi bi-person-lines-fill"></i> Agregar</button>
+      <small class="resumen-venta d-block text-success text-truncate" style="max-width:180px"></small>
       <input type="hidden" name="detalle" value="">
-      <small class="resumen-detalle text-success"></small>
+      <input type="hidden" name="cliente_telefono" value="">
+      <input type="hidden" name="cliente_nombre" value="">
+      <input type="hidden" name="cliente_autoriza" value="0">
     </td>
     <td><button type="button" class="btn btn-sm btn-outline-secondary quitar"><i class="bi bi-x"></i></button></td>
   </tr>
 </template>
 
-<div class="modal fade" id="modalDetalle" tabindex="-1">
-  <div class="modal-dialog modal-lg">
+<!-- Recuadro para agregar cliente y prendas a una fila nueva -->
+<div class="modal fade" id="modalVenta" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Detalle de la venta · <span id="detallePrendas">0</span> prendas</h5>
+        <h5 class="modal-title">Cliente y prendas de la venta</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <p class="small text-muted">Opcional. En cada prenda la referencia, la cantidad y el precio son obligatorios; el color y la talla no. El valor de la venta se calcula solo.</p>
-        <table class="table table-sm align-middle">
-          <thead><tr><th>Referencia</th><th>Color</th><th style="width:90px">Talla</th><th style="width:90px">Cant.</th><th style="width:140px">Precio c/u</th><th class="text-end">Subtotal</th><th></th></tr></thead>
-          <tbody id="detalleLineas"></tbody>
-        </table>
-        <button type="button" id="detalleAgregar" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plus"></i> Agregar referencia</button>
-        <div class="d-flex justify-content-between mt-3">
-          <span id="detalleContador" class="fw-bold"></span>
-          <span>Total: <strong id="detalleTotal">$0</strong></span>
+        <h6 class="text-uppercase small text-muted mb-2"><i class="bi bi-person"></i> Cliente <span class="fw-normal text-lowercase">(opcional)</span></h6>
+        <div class="row g-2">
+          <div class="col-md-5">
+            <label for="vTelefono" class="form-label small mb-0">Celular</label>
+            <input id="vTelefono" class="form-control" inputmode="tel" placeholder="300 123 4567" maxlength="20">
+          </div>
+          <div class="col-md-7">
+            <label for="vNombre" class="form-label small mb-0">Nombre</label>
+            <input id="vNombre" class="form-control" maxlength="120" placeholder="Nombre del cliente">
+          </div>
         </div>
+        <div id="vEstadoCliente" class="small mt-1 mb-2"></div>
+        <div class="form-check mb-3">
+          <input type="checkbox" id="vAutoriza" class="form-check-input">
+          <label for="vAutoriza" class="form-check-label small">
+            El cliente autorizó el uso de sus datos (Ley 1581 de 2012) para contactarlo sobre sus compras y promociones.
+          </label>
+        </div>
+
+        <hr>
+
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="text-uppercase small text-muted mb-0"><i class="bi bi-bag"></i> Prendas <span class="fw-normal text-lowercase">(opcional)</span></h6>
+          <span id="vContador" class="small fw-bold"></span>
+        </div>
+        <table class="table table-sm align-middle">
+          <thead><tr><th>Referencia</th><th>Color</th><th style="width:90px">Talla</th><th style="width:80px">Cant.</th><th style="width:130px">Precio c/u</th><th class="text-end">Subtotal</th><th></th></tr></thead>
+          <tbody id="vLineas"></tbody>
+        </table>
+        <button type="button" id="vAgregarLinea" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plus"></i> Agregar referencia</button>
+        <div class="text-end mt-2">Total de las prendas: <strong id="vTotal">$0</strong></div>
+
+        <div id="vError" class="alert alert-danger py-2 small mt-3 d-none"></div>
       </div>
       <div class="modal-footer">
-        <button type="button" id="detalleQuitar" class="btn btn-outline-danger me-auto">Quitar detalle</button>
+        <button type="button" id="vLimpiar" class="btn btn-outline-danger me-auto">Quitar cliente y prendas</button>
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" id="detalleGuardar" class="btn btn-primary" disabled>Guardar detalle</button>
+        <button type="button" id="vGuardar" class="btn btn-primary">Guardar</button>
       </div>
     </div>
   </div>
 </div>
 
-<template id="plantillaDetalle">
+<template id="plantillaLinea">
   <tr>
-    <td><input class="form-control form-control-sm d-ref" list="listaReferencias"></td>
+    <td><input class="form-control form-control-sm d-ref" list="listaReferencias" placeholder="05085"></td>
     <td><input class="form-control form-control-sm d-color" list="listaColores"></td>
     <td><input class="form-control form-control-sm d-talla" list="listaTallas"></td>
     <td><input type="number" min="1" class="form-control form-control-sm d-cant"></td>
@@ -129,6 +160,41 @@
   </tr>
 </template>
 
+<!-- Recuadro para ver el detalle de una venta ya guardada -->
+<div class="modal fade" id="modalVer" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Detalle de la venta <small id="verHora" class="text-muted"></small></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <div class="small text-muted">Cliente</div>
+            <div id="verCliente" class="fw-bold"></div>
+            <div id="verTelefono" class="small"></div>
+          </div>
+          <div class="col-md-6">
+            <div class="small text-muted">Vendedora</div>
+            <div id="verVendedora" class="fw-bold"></div>
+          </div>
+          <div class="col-4"><div class="small text-muted">Medio de pago</div><div id="verMedio"></div></div>
+          <div class="col-4"><div class="small text-muted">¿Cómo llegó?</div><div id="verContacto"></div></div>
+          <div class="col-4"><div class="small text-muted">Tipo</div><div id="verTipo"></div></div>
+        </div>
+        <table class="table table-sm">
+          <thead class="table-light"><tr><th>Referencia</th><th>Color</th><th>Talla</th><th class="text-end">Cant.</th><th class="text-end">Precio c/u</th><th class="text-end">Subtotal</th></tr></thead>
+          <tbody id="verLineas"></tbody>
+        </table>
+        <div class="d-flex justify-content-between fw-bold fs-5 border-top pt-2">
+          <span id="verPrendas"></span><span id="verValor"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <datalist id="listaReferencias">{% for r in sugerencias.referencias %}<option value="{{ r }}">{% endfor %}</datalist>
 <datalist id="listaColores">{% for c in sugerencias.colores %}<option value="{{ c }}">{% endfor %}</datalist>
 <datalist id="listaTallas">{% for t in sugerencias.tallas %}<option value="{{ t }}">{% endfor %}</datalist>
@@ -136,80 +202,127 @@
 
 {% block scripts %}
 <script>
+  // ---------- Utilidades ----------
+  const aNumero = texto => parseInt(String(texto || '').split(',')[0].replace(/\D/g, '')) || 0;
+  const pesos = v => (v < 0 ? '-$' : '$') + Math.abs(Math.round(v)).toLocaleString('es-CO');
+  const UMBRAL = {{ umbral|tojson }};
+  const URL_CLIENTE = '{{ url_for("ventas.buscar_cliente") }}';
+
+  function telefonoValido(texto) {
+    const d = String(texto || '').replace(/\D/g, '');
+    if (d.length === 12 && d.startsWith('57')) return true;
+    return d.length === 10 && (d.startsWith('3') || d.startsWith('60'));
+  }
+
+  // ---------- Filas para registrar ----------
   const filas = document.getElementById('filas');
-  const plantilla = document.getElementById('plantillaFila');
+  const plantillaFila = document.getElementById('plantillaFila');
   const totalNuevo = document.getElementById('totalNuevo');
 
   function agregarFila() {
-    filas.appendChild(plantilla.content.cloneNode(true));
+    filas.appendChild(plantillaFila.content.cloneNode(true));
   }
 
   function actualizarTotal() {
     let total = 0;
     filas.querySelectorAll('tr').forEach(tr => {
-      const texto = tr.querySelector('[name=valor]').value.split(',')[0];
-      const valor = parseInt(texto.replace(/\D/g, '')) || 0;
+      const valor = aNumero(tr.querySelector('[name=valor]').value);
       total += tr.querySelector('[name=tipo]').value === 'devolucion' ? -valor : valor;
     });
-    totalNuevo.textContent = (total < 0 ? '-$' : '$') + Math.abs(total).toLocaleString('es-CO');
+    totalNuevo.textContent = pesos(total);
+  }
+
+  function actualizarResumen(tr) {
+    const partes = [];
+    const nombre = tr.querySelector('[name=cliente_nombre]').value;
+    const telefono = tr.querySelector('[name=cliente_telefono]').value;
+    if (nombre || telefono) partes.push('👤 ' + (nombre || telefono));
+    const detalle = tr.querySelector('[name=detalle]').value;
+    if (detalle) {
+      const n = JSON.parse(detalle).length;
+      partes.push(`${n} referencia${n > 1 ? 's' : ''}`);
+    }
+    tr.querySelector('.resumen-venta').textContent = partes.join(' · ');
+    tr.querySelector('.abrir-venta').innerHTML = partes.length
+      ? '<i class="bi bi-pencil"></i> Editar'
+      : '<i class="bi bi-person-lines-fill"></i> Agregar';
   }
 
   document.getElementById('agregarFila').addEventListener('click', agregarFila);
+  filas.addEventListener('input', actualizarTotal);
   filas.addEventListener('click', e => {
     if (e.target.closest('.quitar')) {
       e.target.closest('tr').remove();
       actualizarTotal();
     }
+    const boton = e.target.closest('.abrir-venta');
+    if (boton) abrirVenta(boton.closest('tr'));
   });
-  filas.addEventListener('input', actualizarTotal);
-  filas.addEventListener('change', actualizarTotal);
-
-  filas.closest('form').addEventListener('submit', evento => {
-    const faltaContacto = [...filas.querySelectorAll('tr')].some(tr => {
-      const valor = parseInt(tr.querySelector('[name=valor]').value.split(',')[0].replace(/\D/g, '')) || 0;
-      return valor > 0 && !tr.querySelector('[name=medio_contacto]').value;
-    });
-    const UMBRAL = {{ umbral|tojson }};
-    const esMayorista = [...filas.querySelectorAll('tr')].some(tr => {
-      const valor = parseInt(tr.querySelector('[name=valor]').value.split(',')[0].replace(/\D/g, '')) || 0;
-      const opcion = tr.querySelector('[name=vendedora_id]').selectedOptions[0];
-      return tr.querySelector('[name=tipo]').value === 'venta' && opcion?.dataset.mayorista === '1' && valor > UMBRAL;
-    });
-    if (faltaContacto) {
-      evento.preventDefault();
-      alert('Falta indicar cómo llegó el cliente (Orgánico, TikTok, Voz a voz) en alguna fila con valor.');
-    } else if (esMayorista) {
-      evento.preventDefault();
-      alert('Hay una venta de más de $' + UMBRAL.toLocaleString('es-CO') +
-            ' hecha por quien vende al por mayor. Es mayorista: regístrala en Mayoristas → Nueva venta.');
+  filas.addEventListener('change', e => {
+    actualizarTotal();
+    if (e.target.name !== 'prendas') return;
+    const tr = e.target.closest('tr');
+    if (aNumero(e.target.value) > 0) {
+      abrirVenta(tr);
+    } else {
+      tr.querySelector('[name=detalle]').value = '';
+      tr.querySelector('[name=valor]').readOnly = false;
+      actualizarResumen(tr);
     }
   });
 
-  // ---------- Detalle de prendas ----------
-  const modal = new bootstrap.Modal(document.getElementById('modalDetalle'));
-  const detalleLineas = document.getElementById('detalleLineas');
-  const plantillaDetalle = document.getElementById('plantillaDetalle');
-  const btnGuardarDetalle = document.getElementById('detalleGuardar');
-  const contadorDetalle = document.getElementById('detalleContador');
-  const totalDetalle = document.getElementById('detalleTotal');
+  // Revisión final antes de guardar el día
+  filas.closest('form').addEventListener('submit', evento => {
+    let mensaje = null;
+    filas.querySelectorAll('tr').forEach(tr => {
+      const valor = aNumero(tr.querySelector('[name=valor]').value);
+      if (!valor || mensaje) return;
+      const opcion = tr.querySelector('[name=vendedora_id]').selectedOptions[0];
+      const detalle = tr.querySelector('[name=detalle]').value;
+      if (!tr.querySelector('[name=medio_contacto]').value) {
+        mensaje = 'Falta indicar cómo llegó el cliente (Orgánico, TikTok, Voz a voz) en alguna fila con valor.';
+      } else if (tr.querySelector('[name=tipo]').value === 'venta' && opcion?.dataset.mayorista === '1' && valor > UMBRAL) {
+        mensaje = 'Hay una venta de más de $' + UMBRAL.toLocaleString('es-CO') +
+                  ' hecha por quien vende al por mayor. Es mayorista: regístrala en Mayoristas → Nueva venta.';
+      } else if (detalle) {
+        const suma = JSON.parse(detalle).reduce((s, l) => s + l.cantidad, 0);
+        if (suma !== aNumero(tr.querySelector('[name=prendas]').value)) {
+          mensaje = 'En una fila cambiaste el número de prendas y el detalle ya no cuadra. Ábrelo con "Editar" y ajústalo.';
+        }
+      }
+    });
+    if (mensaje) {
+      evento.preventDefault();
+      alert(mensaje);
+    }
+  });
+
+  // ---------- Recuadro: cliente y prendas ----------
+  const modalVenta = new bootstrap.Modal(document.getElementById('modalVenta'));
+  const vTelefono = document.getElementById('vTelefono');
+  const vNombre = document.getElementById('vNombre');
+  const vAutoriza = document.getElementById('vAutoriza');
+  const vEstado = document.getElementById('vEstadoCliente');
+  const vLineas = document.getElementById('vLineas');
+  const plantillaLinea = document.getElementById('plantillaLinea');
+  const vContador = document.getElementById('vContador');
+  const vTotal = document.getElementById('vTotal');
+  const vError = document.getElementById('vError');
   let filaActual = null;
 
-  const aNumero = texto => parseInt(String(texto || '').split(',')[0].replace(/\D/g, '')) || 0;
-  const pesosTexto = v => '$' + Math.round(v).toLocaleString('es-CO');
-
-  function agregarLineaDetalle(datos = {}) {
-    const fragmento = plantillaDetalle.content.cloneNode(true);
+  function agregarLinea(datos = {}) {
+    const fragmento = plantillaLinea.content.cloneNode(true);
     const tr = fragmento.querySelector('tr');
     tr.querySelector('.d-ref').value = datos.referencia || '';
     tr.querySelector('.d-color').value = datos.color || '';
     tr.querySelector('.d-talla').value = datos.talla || '';
     tr.querySelector('.d-cant').value = datos.cantidad || '';
     tr.querySelector('.d-precio').value = datos.precio || '';
-    detalleLineas.appendChild(fragmento);
+    vLineas.appendChild(fragmento);
   }
 
-  function leerLineasDetalle() {
-    return [...detalleLineas.querySelectorAll('tr')].map(tr => ({
+  function leerLineas() {
+    return [...vLineas.querySelectorAll('tr')].map(tr => ({
       referencia: tr.querySelector('.d-ref').value.trim(),
       color: tr.querySelector('.d-color').value.trim(),
       talla: tr.querySelector('.d-talla').value.trim(),
@@ -218,92 +331,170 @@
     })).filter(l => l.referencia || l.cantidad || l.precio);
   }
 
-  function revisarDetalle() {
-    const prendas = aNumero(filaActual.querySelector('[name=prendas]').value);
-    let suma = 0, total = 0, completas = true;
-    detalleLineas.querySelectorAll('tr').forEach(tr => {
-      const ref = tr.querySelector('.d-ref').value.trim();
-      const cantidad = aNumero(tr.querySelector('.d-cant').value);
-      const precio = aNumero(tr.querySelector('.d-precio').value);
-      tr.querySelector('.d-subtotal').textContent = pesosTexto(cantidad * precio);
-      if (!ref && !cantidad && !precio) return;          // fila vacía: no cuenta
-      if (!ref || !cantidad || !precio) completas = false;
-      suma += cantidad;
-      total += cantidad * precio;
+  function revisarPrendas() {
+    vLineas.querySelectorAll('tr').forEach(tr => {
+      const subtotal = aNumero(tr.querySelector('.d-cant').value) * aNumero(tr.querySelector('.d-precio').value);
+      tr.querySelector('.d-subtotal').textContent = pesos(subtotal);
     });
-    const cuadra = completas && suma === prendas && suma > 0;
-    contadorDetalle.textContent = `${suma} de ${prendas} prendas ${cuadra ? '✔' : ''}`;
-    contadorDetalle.className = 'fw-bold ' + (cuadra ? 'text-success' : 'text-danger');
-    totalDetalle.textContent = pesosTexto(total);
-    btnGuardarDetalle.disabled = !cuadra;
+    const lineas = leerLineas();
+    const prendas = aNumero(filaActual.querySelector('[name=prendas]').value);
+    const suma = lineas.reduce((s, l) => s + l.cantidad, 0);
+    const total = lineas.reduce((s, l) => s + l.cantidad * l.precio, 0);
+    if (!lineas.length) {
+      vContador.textContent = 'Sin detalle de prendas';
+      vContador.className = 'small text-muted';
+    } else {
+      const cuadra = !prendas || suma === prendas;
+      vContador.textContent = prendas ? `${suma} de ${prendas} prendas ${suma === prendas ? '✔' : ''}` : `${suma} prendas`;
+      vContador.className = 'small fw-bold ' + (cuadra ? 'text-success' : 'text-danger');
+    }
+    vTotal.textContent = pesos(total);
   }
 
-  function abrirDetalle(tr) {
-    const prendas = aNumero(tr.querySelector('[name=prendas]').value);
-    if (!prendas) {
-      alert('Primero escribe cuántas prendas se vendieron.');
+  function mostrarError(texto) {
+    vError.textContent = texto || '';
+    vError.classList.toggle('d-none', !texto);
+  }
+
+  async function buscarCliente() {
+    const texto = vTelefono.value.trim();
+    vEstado.textContent = '';
+    if (!texto) return;
+    if (!telefonoValido(texto)) {
+      vEstado.className = 'small mt-1 mb-2 text-danger';
+      vEstado.textContent = 'Número no válido: deben ser 10 dígitos (celular o fijo).';
       return;
     }
-    filaActual = tr;
-    document.getElementById('detallePrendas').textContent = prendas;
-    detalleLineas.innerHTML = '';
-    const guardado = tr.querySelector('[name=detalle]').value;
-    const lineas = guardado ? JSON.parse(guardado) : [];
-    if (lineas.length) lineas.forEach(agregarLineaDetalle);
-    else agregarLineaDetalle();
-    revisarDetalle();
-    modal.show();
+    try {
+      const respuesta = await fetch(`${URL_CLIENTE}?telefono=${encodeURIComponent(texto)}`);
+      const datos = await respuesta.json();
+      if (!datos.encontrado) {
+        vEstado.className = 'small mt-1 mb-2 text-muted';
+        vEstado.textContent = 'Cliente nuevo: escribe su nombre.';
+        return;
+      }
+      vEstado.className = 'small mt-1 mb-2 text-success';
+      vEstado.textContent = `Cliente frecuente · ${datos.compras} compra(s)` + (datos.ultima ? ` · última el ${datos.ultima}` : '');
+      if (!vNombre.value) vNombre.value = datos.nombre;
+      if (datos.autorizado) vAutoriza.checked = true;
+    } catch {
+      vEstado.textContent = '';
+    }
   }
 
-  function marcarFila(tr, lineas) {
-    const detalle = tr.querySelector('[name=detalle]');
-    const valor = tr.querySelector('[name=valor]');
-    const resumen = tr.querySelector('.resumen-detalle');
+  function abrirVenta(tr) {
+    filaActual = tr;
+    vTelefono.value = tr.querySelector('[name=cliente_telefono]').value;
+    vNombre.value = tr.querySelector('[name=cliente_nombre]').value;
+    vAutoriza.checked = tr.querySelector('[name=cliente_autoriza]').value === '1';
+    vEstado.textContent = '';
+    vLineas.innerHTML = '';
+    const guardado = tr.querySelector('[name=detalle]').value;
+    const lineas = guardado ? JSON.parse(guardado) : [];
+    if (lineas.length) lineas.forEach(agregarLinea);
+    else if (aNumero(tr.querySelector('[name=prendas]').value) > 0) agregarLinea();
+    mostrarError('');
+    revisarPrendas();
+    if (vTelefono.value) buscarCliente();
+    modalVenta.show();
+  }
+
+  vTelefono.addEventListener('change', buscarCliente);
+  document.getElementById('vAgregarLinea').addEventListener('click', () => { agregarLinea(); revisarPrendas(); });
+  vLineas.addEventListener('input', revisarPrendas);
+  vLineas.addEventListener('click', e => {
+    if (e.target.closest('.d-quitar')) {
+      e.target.closest('tr').remove();
+      revisarPrendas();
+    }
+  });
+
+  document.getElementById('vGuardar').addEventListener('click', () => {
+    const telefono = vTelefono.value.trim();
+    const nombre = vNombre.value.trim();
+    if (nombre && !telefono) return mostrarError('Para guardar al cliente hace falta su celular.');
+    if (telefono && !telefonoValido(telefono)) return mostrarError('El celular no es válido: deben ser 10 dígitos.');
+    if (telefono && !vAutoriza.checked) return mostrarError('Marca la autorización de datos, o borra los datos del cliente.');
+
+    const lineas = leerLineas();
+    if (lineas.some(l => !l.referencia || !l.cantidad || !l.precio)) {
+      return mostrarError('Cada referencia necesita referencia, cantidad y precio. El color y la talla son opcionales.');
+    }
+    const campoPrendas = filaActual.querySelector('[name=prendas]');
+    const suma = lineas.reduce((s, l) => s + l.cantidad, 0);
+    if (lineas.length && !aNumero(campoPrendas.value)) campoPrendas.value = suma;   // si no habían puesto las prendas, las pone solas
+    if (lineas.length && suma !== aNumero(campoPrendas.value)) {
+      return mostrarError(`Las referencias suman ${suma} prendas, pero la venta dice ${aNumero(campoPrendas.value)}. Ajusta las cantidades.`);
+    }
+
+    filaActual.querySelector('[name=cliente_telefono]').value = telefono;
+    filaActual.querySelector('[name=cliente_nombre]').value = nombre;
+    filaActual.querySelector('[name=cliente_autoriza]').value = telefono && vAutoriza.checked ? '1' : '0';
+    const detalle = filaActual.querySelector('[name=detalle]');
+    const valor = filaActual.querySelector('[name=valor]');
     if (lineas.length) {
       detalle.value = JSON.stringify(lineas);
-      valor.value = lineas.reduce((suma, l) => suma + l.cantidad * l.precio, 0);
+      valor.value = lineas.reduce((s, l) => s + l.cantidad * l.precio, 0);
       valor.readOnly = true;
-      resumen.textContent = `✔ ${lineas.length} referencia${lineas.length > 1 ? 's' : ''}`;
     } else {
       detalle.value = '';
       valor.readOnly = false;
-      resumen.textContent = '';
     }
+    actualizarResumen(filaActual);
     actualizarTotal();
+    modalVenta.hide();
+  });
+
+  document.getElementById('vLimpiar').addEventListener('click', () => {
+    ['cliente_telefono', 'cliente_nombre', 'detalle'].forEach(n => filaActual.querySelector(`[name=${n}]`).value = '');
+    filaActual.querySelector('[name=cliente_autoriza]').value = '0';
+    filaActual.querySelector('[name=valor]').readOnly = false;
+    actualizarResumen(filaActual);
+    modalVenta.hide();
+  });
+
+  // ---------- Recuadro: ver una venta guardada ----------
+  const modalVer = document.getElementById('modalVer') ? new bootstrap.Modal(document.getElementById('modalVer')) : null;
+
+  function celda(texto, clase = '') {
+    const td = document.createElement('td');
+    td.textContent = texto;
+    if (clase) td.className = clase;
+    return td;
   }
 
-  // Abrir con el botón de lista
-  filas.addEventListener('click', e => {
-    const boton = e.target.closest('.abrir-detalle');
-    if (boton) abrirDetalle(boton.closest('tr'));
-  });
+  document.querySelectorAll('.fila-venta').forEach(fila => {
+    fila.addEventListener('click', e => {
+      if (e.target.closest('form')) return;          // el botón de eliminar no abre el recuadro
+      const v = JSON.parse(fila.dataset.venta);
+      document.getElementById('verHora').textContent = v.hora ? `· ${v.hora}` : '';
+      document.getElementById('verCliente').textContent = v.cliente || 'Sin cliente registrado';
+      document.getElementById('verTelefono').textContent = v.telefono || '';
+      document.getElementById('verVendedora').textContent = v.vendedora;
+      document.getElementById('verMedio').textContent = v.medio;
+      document.getElementById('verContacto').textContent = v.contacto;
+      document.getElementById('verTipo').textContent = v.tipo;
 
-  // Abrir solo al escribir las prendas
-  filas.addEventListener('change', e => {
-    if (e.target.name !== 'prendas') return;
-    const tr = e.target.closest('tr');
-    if (aNumero(e.target.value) > 0) abrirDetalle(tr);
-    else marcarFila(tr, []);
-  });
-
-  document.getElementById('detalleAgregar').addEventListener('click', () => {
-    agregarLineaDetalle();
-    revisarDetalle();
-  });
-  detalleLineas.addEventListener('input', revisarDetalle);
-  detalleLineas.addEventListener('click', e => {
-    if (e.target.closest('.d-quitar')) {
-      e.target.closest('tr').remove();
-      revisarDetalle();
-    }
-  });
-  btnGuardarDetalle.addEventListener('click', () => {
-    marcarFila(filaActual, leerLineasDetalle());
-    modal.hide();
-  });
-  document.getElementById('detalleQuitar').addEventListener('click', () => {
-    marcarFila(filaActual, []);
-    modal.hide();
+      const cuerpo = document.getElementById('verLineas');
+      cuerpo.replaceChildren();
+      if (v.lineas.length) {
+        v.lineas.forEach(l => {
+          const tr = document.createElement('tr');
+          tr.append(celda(l.referencia), celda(l.color || '—'), celda(l.talla || '—'),
+                    celda(l.cantidad, 'text-end'), celda(pesos(l.precio), 'text-end'), celda(pesos(l.subtotal), 'text-end'));
+          cuerpo.append(tr);
+        });
+      } else {
+        const tr = document.createElement('tr');
+        const td = celda('Esta venta no tiene detalle de prendas.', 'text-muted');
+        td.colSpan = 6;
+        tr.append(td);
+        cuerpo.append(tr);
+      }
+      document.getElementById('verPrendas').textContent = `${v.prendas || 0} prenda(s)`;
+      document.getElementById('verValor').textContent = pesos(v.tipo === 'Devolución' ? -v.valor : v.valor);
+      modalVer.show();
+    });
   });
 
   for (let i = 0; i < 3; i++) agregarFila();

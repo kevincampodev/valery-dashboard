@@ -11,7 +11,8 @@ def test_regla_mayorista():
 
 
 def test_normalizar_referencia():
-    assert normalizar_referencia("09176") == "9176"
+    assert normalizar_referencia("09176") == "09176"
+    assert normalizar_referencia("5085") == "05085"          # completa a 5 dígitos
     assert normalizar_referencia("  vestido   largo ") == "VESTIDO LARGO"
     assert normalizar_referencia(None) == ""
 
@@ -20,8 +21,8 @@ def test_leer_lineas_ignora_vacias_y_reporta_incompletas():
     lineas, errores = leer_lineas(["09200", "", "7105", "5085"],
                                   ["12", "", "", "3"],
                                   ["85.000", "", "90000", "70000"])
-    assert lineas == [{"referencia": "9200", "cantidad": 12, "precio_unitario": 85000},
-                      {"referencia": "5085", "cantidad": 3, "precio_unitario": 70000}]
+    assert lineas == [{"referencia": "09200", "cantidad": 12, "precio_unitario": 85000},
+                      {"referencia": "05085", "cantidad": 3, "precio_unitario": 70000}]
     assert errores == ["Línea 3: referencia, cantidad y precio unitario son obligatorios."]
     assert total_lineas(lineas) == 1_230_000
 

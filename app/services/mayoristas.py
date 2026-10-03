@@ -9,10 +9,10 @@ def es_mayorista(vende_mayorista, valor, umbral):
 
 
 def normalizar_referencia(texto):
-    """'09176' -> '9176' | ' vestido  largo ' -> 'VESTIDO LARGO'"""
+    """'5085' -> '05085' | '05085' -> '05085' | ' vestido  largo ' -> 'VESTIDO LARGO'"""
     limpio = " ".join(str(texto or "").split()).upper()
     if limpio.isdigit():
-        limpio = limpio.lstrip("0") or "0"
+        limpio = limpio.zfill(5)        # las referencias numéricas siempre tienen 5 dígitos
     return limpio
 
 
