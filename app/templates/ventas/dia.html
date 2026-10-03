@@ -25,7 +25,9 @@
         <td>{{ v.medio_pago }}</td>
         <td>{{ v.medio_contacto or '—' }}</td>
         <td>{{ 'Devolución' if v.es_devolucion else 'Venta' }}</td>
-        <td class="text-end">{{ v.prendas or '—' }}</td>
+        <td class="text-end">{{ v.prendas or '—' }}
+          {% if v.lineas %}<br><small class="text-muted">{% for l in v.lineas %}{{ l.referencia }}{{ ' ' ~ l.color if l.color }}{{ ' ' ~ l.talla if l.talla }} ×{{ l.cantidad }}{{ ', ' if not loop.last }}{% endfor %}</small>{% endif %}
+        </td>
         <td class="text-end">{{ v.neto|pesos if not v.es_devolucion else '-' ~ v.valor|pesos }}</td>
         <td>
           <form method="post" action="{{ url_for('ventas.eliminar', id=v.id) }}" onsubmit="return confirm('¿Eliminar este registro?')">
@@ -50,7 +52,7 @@
   <div class="alert alert-info py-2">No hay vendedoras activas. <a href="{{ url_for('ventas.vendedoras') }}">Créalas aquí</a> o registra sin vendedora.</div>
   {% endif %}
   <table class="table table-sm align-middle">
-    <thead><tr><th>Canal</th><th>Vendedora</th><th>Medio</th><th>Contacto</th><th>Tipo</th><th style="width:170px">Valor</th><th style="width:100px">Prendas</th><th></th></tr></thead>
+    <thead><tr><th>Canal</th><th>Vendedora</th><th>Medio</th><th>Contacto</th><th>Tipo</th><th style="width:170px">Valor</th><th style="width:150px">Prendas</th><th></th></tr></thead>
     <tbody id="filas"></tbody>
   </table>
   <div>
@@ -75,10 +77,61 @@
       <option value="venta">Venta</option><option value="devolucion">Devolución</option>
     </select></td>
     <td><input name="valor" class="form-control form-control-sm" inputmode="numeric"></td>
-    <td><input name="prendas" type="number" min="0" class="form-control form-control-sm"></td>
+    <td>
+      <div class="input-group input-group-sm">
+        <input name="prendas" type="number" min="0" class="form-control">
+        <button type="button" class="btn btn-outline-secondary abrir-detalle" title="Detalle de prendas"><i class="bi bi-list-ul"></i></button>
+      </div>
+      <input type="hidden" name="detalle" value="">
+      <small class="resumen-detalle text-success"></small>
+    </td>
     <td><button type="button" class="btn btn-sm btn-outline-secondary quitar"><i class="bi bi-x"></i></button></td>
   </tr>
 </template>
+
+<div class="modal fade" id="modalDetalle" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Detalle de la venta · <span id="detallePrendas">0</span> prendas</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted">Opcional. En cada prenda la referencia, la cantidad y el precio son obligatorios; el color y la talla no. El valor de la venta se calcula solo.</p>
+        <table class="table table-sm align-middle">
+          <thead><tr><th>Referencia</th><th>Color</th><th style="width:90px">Talla</th><th style="width:90px">Cant.</th><th style="width:140px">Precio c/u</th><th class="text-end">Subtotal</th><th></th></tr></thead>
+          <tbody id="detalleLineas"></tbody>
+        </table>
+        <button type="button" id="detalleAgregar" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plus"></i> Agregar referencia</button>
+        <div class="d-flex justify-content-between mt-3">
+          <span id="detalleContador" class="fw-bold"></span>
+          <span>Total: <strong id="detalleTotal">$0</strong></span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="detalleQuitar" class="btn btn-outline-danger me-auto">Quitar detalle</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" id="detalleGuardar" class="btn btn-primary" disabled>Guardar detalle</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<template id="plantillaDetalle">
+  <tr>
+    <td><input class="form-control form-control-sm d-ref" list="listaReferencias"></td>
+    <td><input class="form-control form-control-sm d-color" list="listaColores"></td>
+    <td><input class="form-control form-control-sm d-talla" list="listaTallas"></td>
+    <td><input type="number" min="1" class="form-control form-control-sm d-cant"></td>
+    <td><input class="form-control form-control-sm d-precio" inputmode="numeric"></td>
+    <td class="text-end d-subtotal">$0</td>
+    <td><button type="button" class="btn btn-sm btn-outline-secondary d-quitar"><i class="bi bi-x"></i></button></td>
+  </tr>
+</template>
+
+<datalist id="listaReferencias">{% for r in sugerencias.referencias %}<option value="{{ r }}">{% endfor %}</datalist>
+<datalist id="listaColores">{% for c in sugerencias.colores %}<option value="{{ c }}">{% endfor %}</datalist>
+<datalist id="listaTallas">{% for t in sugerencias.tallas %}<option value="{{ t }}">{% endfor %}</datalist>
 {% endblock %}
 
 {% block scripts %}
@@ -130,6 +183,127 @@
       alert('Hay una venta de más de $' + UMBRAL.toLocaleString('es-CO') +
             ' hecha por quien vende al por mayor. Es mayorista: regístrala en Mayoristas → Nueva venta.');
     }
+  });
+
+  // ---------- Detalle de prendas ----------
+  const modal = new bootstrap.Modal(document.getElementById('modalDetalle'));
+  const detalleLineas = document.getElementById('detalleLineas');
+  const plantillaDetalle = document.getElementById('plantillaDetalle');
+  const btnGuardarDetalle = document.getElementById('detalleGuardar');
+  const contadorDetalle = document.getElementById('detalleContador');
+  const totalDetalle = document.getElementById('detalleTotal');
+  let filaActual = null;
+
+  const aNumero = texto => parseInt(String(texto || '').split(',')[0].replace(/\D/g, '')) || 0;
+  const pesosTexto = v => '$' + Math.round(v).toLocaleString('es-CO');
+
+  function agregarLineaDetalle(datos = {}) {
+    const fragmento = plantillaDetalle.content.cloneNode(true);
+    const tr = fragmento.querySelector('tr');
+    tr.querySelector('.d-ref').value = datos.referencia || '';
+    tr.querySelector('.d-color').value = datos.color || '';
+    tr.querySelector('.d-talla').value = datos.talla || '';
+    tr.querySelector('.d-cant').value = datos.cantidad || '';
+    tr.querySelector('.d-precio').value = datos.precio || '';
+    detalleLineas.appendChild(fragmento);
+  }
+
+  function leerLineasDetalle() {
+    return [...detalleLineas.querySelectorAll('tr')].map(tr => ({
+      referencia: tr.querySelector('.d-ref').value.trim(),
+      color: tr.querySelector('.d-color').value.trim(),
+      talla: tr.querySelector('.d-talla').value.trim(),
+      cantidad: aNumero(tr.querySelector('.d-cant').value),
+      precio: aNumero(tr.querySelector('.d-precio').value),
+    })).filter(l => l.referencia || l.cantidad || l.precio);
+  }
+
+  function revisarDetalle() {
+    const prendas = aNumero(filaActual.querySelector('[name=prendas]').value);
+    let suma = 0, total = 0, completas = true;
+    detalleLineas.querySelectorAll('tr').forEach(tr => {
+      const ref = tr.querySelector('.d-ref').value.trim();
+      const cantidad = aNumero(tr.querySelector('.d-cant').value);
+      const precio = aNumero(tr.querySelector('.d-precio').value);
+      tr.querySelector('.d-subtotal').textContent = pesosTexto(cantidad * precio);
+      if (!ref && !cantidad && !precio) return;          // fila vacía: no cuenta
+      if (!ref || !cantidad || !precio) completas = false;
+      suma += cantidad;
+      total += cantidad * precio;
+    });
+    const cuadra = completas && suma === prendas && suma > 0;
+    contadorDetalle.textContent = `${suma} de ${prendas} prendas ${cuadra ? '✔' : ''}`;
+    contadorDetalle.className = 'fw-bold ' + (cuadra ? 'text-success' : 'text-danger');
+    totalDetalle.textContent = pesosTexto(total);
+    btnGuardarDetalle.disabled = !cuadra;
+  }
+
+  function abrirDetalle(tr) {
+    const prendas = aNumero(tr.querySelector('[name=prendas]').value);
+    if (!prendas) {
+      alert('Primero escribe cuántas prendas se vendieron.');
+      return;
+    }
+    filaActual = tr;
+    document.getElementById('detallePrendas').textContent = prendas;
+    detalleLineas.innerHTML = '';
+    const guardado = tr.querySelector('[name=detalle]').value;
+    const lineas = guardado ? JSON.parse(guardado) : [];
+    if (lineas.length) lineas.forEach(agregarLineaDetalle);
+    else agregarLineaDetalle();
+    revisarDetalle();
+    modal.show();
+  }
+
+  function marcarFila(tr, lineas) {
+    const detalle = tr.querySelector('[name=detalle]');
+    const valor = tr.querySelector('[name=valor]');
+    const resumen = tr.querySelector('.resumen-detalle');
+    if (lineas.length) {
+      detalle.value = JSON.stringify(lineas);
+      valor.value = lineas.reduce((suma, l) => suma + l.cantidad * l.precio, 0);
+      valor.readOnly = true;
+      resumen.textContent = `✔ ${lineas.length} referencia${lineas.length > 1 ? 's' : ''}`;
+    } else {
+      detalle.value = '';
+      valor.readOnly = false;
+      resumen.textContent = '';
+    }
+    actualizarTotal();
+  }
+
+  // Abrir con el botón de lista
+  filas.addEventListener('click', e => {
+    const boton = e.target.closest('.abrir-detalle');
+    if (boton) abrirDetalle(boton.closest('tr'));
+  });
+
+  // Abrir solo al escribir las prendas
+  filas.addEventListener('change', e => {
+    if (e.target.name !== 'prendas') return;
+    const tr = e.target.closest('tr');
+    if (aNumero(e.target.value) > 0) abrirDetalle(tr);
+    else marcarFila(tr, []);
+  });
+
+  document.getElementById('detalleAgregar').addEventListener('click', () => {
+    agregarLineaDetalle();
+    revisarDetalle();
+  });
+  detalleLineas.addEventListener('input', revisarDetalle);
+  detalleLineas.addEventListener('click', e => {
+    if (e.target.closest('.d-quitar')) {
+      e.target.closest('tr').remove();
+      revisarDetalle();
+    }
+  });
+  btnGuardarDetalle.addEventListener('click', () => {
+    marcarFila(filaActual, leerLineasDetalle());
+    modal.hide();
+  });
+  document.getElementById('detalleQuitar').addEventListener('click', () => {
+    marcarFila(filaActual, []);
+    modal.hide();
   });
 
   for (let i = 0; i < 3; i++) agregarFila();

@@ -2,12 +2,15 @@ from datetime import date, timedelta
 
 from flask import render_template, request, redirect, url_for, flash, abort
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from . import bp
 from ...extensions import db
-from ...models import Venta, Vendedora, Parametro, CANALES, MEDIOS_VENTA, MEDIOS_CONTACTO
-from ...services.mayoristas import es_mayorista, UMBRAL_MAYORISTA_DEFECTO
+from ...models import Venta, Vendedora, Parametro, LineaVenta, CANALES, MEDIOS_VENTA, MEDIOS_CONTACTO
+from ...services.mayoristas import es_mayorista, total_lineas, UMBRAL_MAYORISTA_DEFECTO
+from ...services.detalle_venta import leer_detalle
+
+TALLAS_BASE = ["XS", "S", "M", "L", "XL", "XXL", "ÚNICA"]
 from ...services.ventas import resumen_mes
 from ...utils import a_pesos, a_fecha, formato_pesos, mes_desde_texto, rango_mes, nombre_mes
 
@@ -51,11 +54,17 @@ def dia(fecha):
     if request.method == "POST":
         f = request.form
         filas = zip(f.getlist("canal"), f.getlist("vendedora_id"), f.getlist("medio_pago"),
-                    f.getlist("tipo"), f.getlist("valor"), f.getlist("prendas"), f.getlist("medio_contacto"))
+                    f.getlist("tipo"), f.getlist("valor"), f.getlist("prendas"), f.getlist("medio_contacto"),
+                    f.getlist("detalle"))
 
         nuevas, errores = [], []
-        for n, (canal, vendedora_id, medio, tipo, valor, prendas, contacto) in enumerate(filas, start=1):
-            valor = a_pesos(valor)
+        for n, (canal, vendedora_id, medio, tipo, valor, prendas, contacto, detalle) in enumerate(filas, start=1):
+            cantidad_prendas = int(prendas) if prendas.isdigit() else 0
+            lineas, error_detalle = leer_detalle(detalle, cantidad_prendas)
+            if error_detalle:
+                errores.append(f"Fila {n}: {error_detalle}")
+                continue
+            valor = total_lineas(lineas) if lineas else a_pesos(valor)
             if valor <= 0:
                 continue  # fila vacía: se ignora
             vendedora_id = int(vendedora_id) if vendedora_id else None
@@ -69,11 +78,13 @@ def dia(fecha):
             if canal != "Minorista" or medio not in MEDIOS_VENTA or (vendedora_id and vendedora_id not in ids_validos):
                 errores.append(f"Fila {n}: datos inválidos.")
                 continue
-            nuevas.append(Venta(
+            venta = Venta(
                 fecha=fecha_venta, canal=canal, vendedora_id=vendedora_id, medio_pago=medio,
                 valor=valor, prendas=int(prendas) if prendas.isdigit() else None, medio_contacto=contacto,
                 es_devolucion=(tipo == "devolucion"),
-            ))
+            )
+            venta.lineas.extend(LineaVenta(**linea) for linea in lineas)
+            nuevas.append(venta)
 
         if errores:
             for e in errores:
@@ -86,8 +97,18 @@ def dia(fecha):
             flash(f"{len(nuevas)} registros guardados. Neto: {formato_pesos(sum(v.neto for v in nuevas))}.", "success")
         return redirect(url_for("ventas.dia", fecha=fecha))
 
-    registros = (Venta.query.options(joinedload(Venta.vendedora))
+    registros = (Venta.query.options(joinedload(Venta.vendedora), selectinload(Venta.lineas))
                  .filter_by(fecha=fecha_venta).order_by(Venta.id).all())
+
+    tallas_usadas = [t for (t,) in db.session.query(LineaVenta.talla)
+                     .filter(LineaVenta.talla.isnot(None)).distinct()]
+    sugerencias = {
+        "referencias": [r for (r,) in db.session.query(LineaVenta.referencia)
+                        .distinct().order_by(LineaVenta.referencia).limit(500)],
+        "colores": [c for (c,) in db.session.query(LineaVenta.color)
+                    .filter(LineaVenta.color.isnot(None)).distinct().order_by(LineaVenta.color)],
+        "tallas": TALLAS_BASE + sorted(t for t in tallas_usadas if t not in TALLAS_BASE),
+    }
     return render_template(
         "ventas/dia.html",
         fecha_venta=fecha_venta,
@@ -98,6 +119,7 @@ def dia(fecha):
         medios=MEDIOS_VENTA,
         contactos=MEDIOS_CONTACTO,
         umbral=umbral,
+        sugerencias=sugerencias,
         anterior=(fecha_venta - timedelta(days=1)).isoformat(),
         siguiente=(fecha_venta + timedelta(days=1)).isoformat(),
     )
