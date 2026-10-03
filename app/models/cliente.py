@@ -29,6 +29,8 @@ class LineaVenta(db.Model):
     referencia = db.Column(db.String(30), nullable=False, index=True)
     cantidad = db.Column(db.Integer, nullable=False)
     precio_unitario = db.Column(db.Integer, nullable=False)
+    color = db.Column(db.String(30))
+    talla = db.Column(db.String(10))
 
     venta = db.relationship("Venta", back_populates="lineas")
 
