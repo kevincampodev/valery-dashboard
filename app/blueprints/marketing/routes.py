@@ -8,10 +8,10 @@ from . import bp
 from ...extensions import db
 from ...models import Venta, InversionPublicidad, Parametro, NETO_SQL
 from ...services.comisiones import CANAL_COMISIONABLE
-from ...services.marketing import meses_entre, dias_pauta, retorno_equilibrio, rentabilidad
+from ...services.marketing import (meses_entre, inversion_del_mes, retorno_equilibrio, rentabilidad,
+                                   REDES_PAUTA, PLATAFORMAS_PAUTA)
 from ...utils import a_pesos, a_bp, formato_bp, mes_desde_texto, nombre_mes
 
-CANAL = "TikTok"
 MARGEN_DEFECTO_BP = 5000
 
 
@@ -26,13 +26,19 @@ def _comision(venta):
 def index():
     hoy = date.today()
     margen_bp = Parametro.obtener_int("margen_bruto_bp", MARGEN_DEFECTO_BP)
-    pautas = {p.mes: p for p in InversionPublicidad.query.filter_by(canal=CANAL)}
+    pautas = {}
+    for pauta in InversionPublicidad.query.order_by(InversionPublicidad.canal):
+        pautas.setdefault(pauta.mes, []).append(pauta)
 
     por_mes = {}
-    for venta in Venta.query.options(joinedload(Venta.vendedora)).filter_by(medio_contacto=CANAL):
-        acumulado = por_mes.setdefault(venta.fecha.replace(day=1), {"ventas": 0, "comisiones": 0})
+    ventas_pauta = (Venta.query.options(joinedload(Venta.vendedora))
+                    .filter(Venta.medio_contacto.in_(REDES_PAUTA)))
+    for venta in ventas_pauta:
+        acumulado = por_mes.setdefault(venta.fecha.replace(day=1),
+                                       {"ventas": 0, "comisiones": 0, "por_red": dict.fromkeys(REDES_PAUTA, 0)})
         acumulado["ventas"] += venta.neto
         acumulado["comisiones"] += _comision(venta)
+        acumulado["por_red"][venta.medio_contacto] += venta.neto
 
     mes_sql = func.strftime("%Y-%m", Venta.fecha)
     ventas_totales = dict(db.session.query(mes_sql, func.sum(NETO_SQL)).group_by(mes_sql).all())
@@ -41,12 +47,12 @@ def index():
     for mes in sorted(set(pautas) | set(por_mes)):
         if mes > hoy:
             continue
-        pauta = pautas.get(mes)
-        datos = por_mes.get(mes, {"ventas": 0, "comisiones": 0})
-        inversion = pauta.valor_diario * dias_pauta(mes, pauta.dias, hoy) if pauta else 0
+        pautas_mes = pautas.get(mes, [])
+        datos = por_mes.get(mes, {"ventas": 0, "comisiones": 0, "por_red": dict.fromkeys(REDES_PAUTA, 0)})
+        inversion = inversion_del_mes(pautas_mes, mes, hoy)
         fila = rentabilidad(datos["ventas"], inversion, datos["comisiones"], margen_bp)
         total_mes = ventas_totales.get(mes.strftime("%Y-%m")) or 0
-        fila.update(mes=mes, etiqueta=nombre_mes(mes), pauta=pauta,
+        fila.update(mes=mes, etiqueta=nombre_mes(mes), pautas=pautas_mes, por_red=datos["por_red"],
                     participacion=round(datos["ventas"] * 100 / total_mes) if total_mes else 0)
         filas.append(fila)
 
@@ -58,7 +64,9 @@ def index():
         "ganancia": [f["ganancia_bruta"] - f["comisiones"] for f in filas],
         "resultado": [f["resultado"] for f in filas],
     }
-    return render_template("marketing/index.html", filas=filas, total=total, grafica=grafica, canal=CANAL,
+    por_red = {red: sum(f["por_red"][red] for f in filas) for red in REDES_PAUTA}
+    return render_template("marketing/index.html", filas=filas, total=total, grafica=grafica, por_red=por_red,
+                           redes=REDES_PAUTA, plataformas=PLATAFORMAS_PAUTA,
                            margen_bp=margen_bp, equilibrio=retorno_equilibrio(margen_bp))
 
 
@@ -77,13 +85,16 @@ def guardar_margen():
 @bp.route("/pauta", methods=["POST"])
 def guardar_pauta():
     f = request.form
+    plataforma = f.get("plataforma")
     desde = mes_desde_texto(f.get("desde"))
     hasta = mes_desde_texto(f.get("hasta") or f.get("desde"))
     valor = a_pesos(f.get("valor_diario"))
     dias = f.get("dias", type=int)
     meses = meses_entre(desde, hasta)
 
-    if not meses or len(meses) > 24:
+    if plataforma not in PLATAFORMAS_PAUTA:
+        flash("Elige la plataforma de la pauta.", "danger")
+    elif not meses or len(meses) > 24:
         flash("Revisa el rango: 'hasta' no puede ser antes de 'desde' y el máximo es 24 meses.", "danger")
     elif valor <= 0:
         flash("El valor diario debe ser mayor a cero.", "danger")
@@ -91,13 +102,13 @@ def guardar_pauta():
         flash("Los días deben estar entre 1 y 31 (o vacío para todo el mes).", "danger")
     else:
         for mes in meses:
-            pauta = (InversionPublicidad.query.filter_by(mes=mes, canal=CANAL).first()
-                     or InversionPublicidad(mes=mes, canal=CANAL))
+            pauta = (InversionPublicidad.query.filter_by(mes=mes, canal=plataforma).first()
+                     or InversionPublicidad(mes=mes, canal=plataforma))
             pauta.valor_diario = valor
             pauta.dias = dias
             db.session.add(pauta)
         db.session.commit()
-        flash(f"Pauta registrada para {len(meses)} mes(es).", "success")
+        flash(f"Pauta de {plataforma} registrada para {len(meses)} mes(es).", "success")
     return redirect(url_for("marketing.index"))
 
 
