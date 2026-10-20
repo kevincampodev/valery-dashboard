@@ -35,3 +35,10 @@ def test_mes_sin_pauta_no_divide_por_cero():
 def test_formato_pesos_negativos():
     assert formato_pesos(-2_792_500) == "-$2.792.500"
     assert formato_pesos(1500) == "$1.500"
+
+def test_inversion_suma_todas_las_plataformas():
+    from types import SimpleNamespace as P
+    from app.services.marketing import inversion_del_mes
+    pautas = [P(valor_diario=120_000, dias=None), P(valor_diario=50_000, dias=10)]   # TikTok todo el mes, Meta 10 días
+    assert inversion_del_mes(pautas, date(2026, 9, 1), HOY) == 120_000 * 29 + 50_000 * 10
+    assert inversion_del_mes([], date(2026, 9, 1), HOY) == 0

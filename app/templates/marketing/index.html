@@ -3,8 +3,9 @@
 {% set colores = {'rentable': 'success', 'pérdida': 'danger', 'sin pauta': 'secondary'} %}
 {% macro retorno(valor) %}{{ ('$' ~ '%.2f'|format(valor)|replace('.', ',')) if valor is not none else '—' }}{% endmacro %}
 
-<h2 class="mb-1">Rentabilidad de la publicidad · {{ canal }}</h2>
-<p class="text-muted mb-4">Compara lo invertido en pauta con la ganancia que dejaron las ventas de clientes que llegaron por {{ canal }}.</p>
+<h2 class="mb-1">Rentabilidad de la publicidad</h2>
+<p class="text-muted mb-4">Compara lo invertido en pauta (TikTok y Meta) con la ganancia que dejaron las ventas de clientes
+  que llegaron por {{ redes|join(', ') }}.</p>
 
 <div class="row g-3 mb-4">
   <div class="col-lg-4">
@@ -22,7 +23,7 @@
   </div>
   {% for titulo, valor, color in [
       ('Invertido en pauta', total.inversion|pesos, 'primary'),
-      ('Ventas por ' ~ canal, total.ventas|pesos, 'info'),
+      ('Ventas por redes', total.ventas|pesos, 'info'),
       ('Resultado acumulado', total.resultado|pesos, 'success' if total.resultado > 0 else 'danger')] %}
   <div class="col-lg-{{ 3 if loop.last else 2 }} col-md-4">
     <div class="card card-body shadow-sm h-100 border-start border-4 border-{{ color }}">
@@ -39,6 +40,16 @@
   </div>
 </div>
 
+<div class="row g-3 mb-4">
+  {% for red in redes %}
+  <div class="col-md-4">
+    <div class="card card-body shadow-sm py-2 d-flex flex-row justify-content-between align-items-center">
+      <span class="text-muted small">Vendido por {{ red }}</span><strong>{{ por_red[red]|pesos }}</strong>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
 <div class="card card-body shadow-sm mb-4">
   <div style="height:280px"><canvas id="grafPauta"></canvas></div>
 </div>
@@ -46,7 +57,7 @@
 <div class="table-responsive mb-4">
 <table class="table table-sm align-middle">
   <thead class="table-light">
-    <tr><th>Mes</th><th>Pauta</th><th class="text-end">Invertido</th><th class="text-end">Ventas {{ canal }}</th>
+    <tr><th>Mes</th><th>Pauta</th><th class="text-end">Invertido</th><th class="text-end">Ventas por redes</th>
         <th class="text-end">% del mes</th><th class="text-end">Por cada $1</th><th class="text-end">Ganancia ({{ margen_bp|porcentaje }})</th>
         <th class="text-end">Comisiones</th><th class="text-end">Resultado</th><th></th></tr>
   </thead>
@@ -55,15 +66,19 @@
     <tr>
       <td>{{ f.etiqueta }}</td>
       <td class="small">
-        {% if f.pauta %}{{ f.pauta.valor_diario|pesos }}/día{% if f.pauta.dias %} × {{ f.pauta.dias }} días{% endif %}
-          <form method="post" action="{{ url_for('marketing.eliminar_pauta', id=f.pauta.id) }}" class="d-inline"
-                onsubmit="return confirm('¿Eliminar la pauta de {{ f.etiqueta }}?')">
+        {% for p in f.pautas %}
+        <div class="text-nowrap">{{ p.canal }}: {{ p.valor_diario|pesos }}/día{% if p.dias %} × {{ p.dias }} días{% endif %}
+          <form method="post" action="{{ url_for('marketing.eliminar_pauta', id=p.id) }}" class="d-inline"
+                onsubmit="return confirm('¿Eliminar la pauta de {{ p.canal }} de {{ f.etiqueta }}?')">
             <button class="btn btn-sm btn-link text-danger p-0 ms-1"><i class="bi bi-x-circle"></i></button>
           </form>
-        {% else %}<span class="text-muted">Sin registrar</span>{% endif %}
+        </div>
+        {% else %}<span class="text-muted">Sin registrar</span>{% endfor %}
       </td>
       <td class="text-end">{{ f.inversion|pesos }}</td>
-      <td class="text-end">{{ f.ventas|pesos }}</td>
+      <td class="text-end">{{ f.ventas|pesos }}
+        <div class="small text-muted text-nowrap">{% for red in redes if f.por_red[red] %}{{ red }} {{ f.por_red[red]|pesos }}{% if not loop.last %} · {% endif %}{% endfor %}</div>
+      </td>
       <td class="text-end">{{ f.participacion }}%</td>
       <td class="text-end fw-bold {{ 'text-success' if f.retorno and f.retorno >= equilibrio else 'text-danger' if f.retorno else '' }}">{{ retorno(f.retorno) }}</td>
       <td class="text-end">{{ f.ganancia_bruta|pesos }}</td>
@@ -72,7 +87,7 @@
       <td><span class="badge bg-{{ colores[f.estado] }}">{{ f.estado|capitalize }}</span></td>
     </tr>
     {% else %}
-    <tr><td colspan="10" class="text-center text-muted py-4">Registra la pauta y las ventas con medio de contacto {{ canal }} para ver la rentabilidad.</td></tr>
+    <tr><td colspan="10" class="text-center text-muted py-4">Registra la pauta y las ventas que llegan por {{ redes|join(', ') }} para ver la rentabilidad.</td></tr>
     {% endfor %}
   </tbody>
 </table>
@@ -81,16 +96,20 @@
 <div class="card card-body shadow-sm mb-3">
   <h6>Registrar pauta</h6>
   <form method="post" action="{{ url_for('marketing.guardar_pauta') }}" class="row g-2 align-items-end">
-    <div class="col-md-3"><label class="form-label small mb-0">Desde</label><input type="month" name="desde" class="form-control" required></div>
-    <div class="col-md-3"><label class="form-label small mb-0">Hasta (opcional)</label><input type="month" name="hasta" class="form-control"></div>
+    <div class="col-md-2"><label class="form-label small mb-0">Plataforma</label>
+      <select name="plataforma" class="form-select" required>
+        {% for p in plataformas %}<option value="{{ p }}">{{ p }}{% if p == 'Meta' %} (Facebook e Instagram){% endif %}</option>{% endfor %}
+      </select></div>
+    <div class="col-md-2"><label class="form-label small mb-0">Desde</label><input type="month" name="desde" class="form-control" required></div>
+    <div class="col-md-2"><label class="form-label small mb-0">Hasta (opcional)</label><input type="month" name="hasta" class="form-control"></div>
     <div class="col-md-3"><label class="form-label small mb-0">Valor diario</label><input name="valor_diario" class="form-control" placeholder="120000" required></div>
     <div class="col-md-2"><label class="form-label small mb-0">Días (opcional)</label><input name="dias" type="number" min="1" max="31" class="form-control" placeholder="Todo el mes"></div>
     <div class="col-md-1"><button class="btn btn-primary w-100"><i class="bi bi-save"></i></button></div>
   </form>
-  <small class="text-muted mt-2">Un rango aplica el mismo valor a cada mes. Si un mes ya tenía pauta, se actualiza. El mes en curso cuenta solo hasta hoy.</small>
+  <small class="text-muted mt-2">Un rango aplica el mismo valor a cada mes. Si un mes ya tenía pauta en esa plataforma, se actualiza. El mes en curso cuenta solo hasta hoy.</small>
 </div>
 
-<p class="small text-muted">Atribución: una venta cuenta como {{ canal }} cuando la vendedora registra que el cliente llegó por ahí.
+<p class="small text-muted">Atribución: una venta cuenta como publicidad cuando la vendedora registra que el cliente llegó por {{ redes|join(', ') }}.
   La calidad de este análisis depende de preguntarlo siempre. Ganancia = ventas × margen; el resultado resta además la pauta y las comisiones de esas ventas.</p>
 {% endblock %}
 

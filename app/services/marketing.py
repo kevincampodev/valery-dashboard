@@ -1,6 +1,11 @@
 import calendar
 from datetime import timedelta
 
+# Medios de contacto que cuentan como clientes traídos por la publicidad pagada
+REDES_PAUTA = ["TikTok", "Facebook", "Instagram"]
+# Dónde se paga la pauta. Meta = una sola campaña para Facebook e Instagram.
+PLATAFORMAS_PAUTA = ["TikTok", "Meta"]
+
 
 def meses_entre(desde, hasta):
     """Primer día de cada mes entre `desde` y `hasta` (ambos incluidos)."""
@@ -19,6 +24,11 @@ def dias_pauta(mes, dias_config, hoy):
     if (mes.year, mes.month) == (hoy.year, hoy.month):
         dias = min(dias, hoy.day)
     return dias
+
+
+def inversion_del_mes(pautas, mes, hoy):
+    """Suma lo invertido en todas las plataformas de un mes (cada una con sus días)."""
+    return sum(p.valor_diario * dias_pauta(mes, p.dias, hoy) for p in pautas)
 
 
 def retorno_equilibrio(margen_bp):

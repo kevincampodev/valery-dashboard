@@ -11,6 +11,7 @@ from ...models.marketing import InversionPublicidad
 from ...services.indicadores import (resumen_deudas, deuda_por_proveedor, vencimientos_por_semana,
                                      clientes_sin_comprar)
 from ...services.metas import avance_meta
+from ...services.marketing import REDES_PAUTA, inversion_del_mes
 from ...utils import rango_mes
 
 DIAS_SIN_COMPRA = 45
@@ -38,15 +39,13 @@ def index():
     for v in ventas_mes:
         canales_mes[v.canal] = canales_mes.get(v.canal, 0) + v.neto
 
-    # TikTok del mes
-    ventas_tiktok = sum(v.neto for v in ventas_mes if v.medio_contacto == "TikTok")
-    pauta = InversionPublicidad.query.filter_by(mes=inicio_mes, canal="TikTok").first()
-    dias_pauta = min(pauta.dias or hoy.day, hoy.day) if pauta else 0
-    inversion = pauta.valor_diario * dias_pauta if pauta else 0
-    tiktok = {
-        "ventas": ventas_tiktok,
+    # Publicidad del mes (TikTok, Facebook e Instagram)
+    ventas_redes = sum(v.neto for v in ventas_mes if v.medio_contacto in REDES_PAUTA)
+    inversion = inversion_del_mes(InversionPublicidad.query.filter_by(mes=inicio_mes).all(), inicio_mes, hoy)
+    publicidad = {
+        "ventas": ventas_redes,
         "inversion": inversion,
-        "retorno": ventas_tiktok / inversion if inversion else None,
+        "retorno": ventas_redes / inversion if inversion else None,
         "equilibrio": RETORNO_EQUILIBRIO,
     }
 
@@ -76,7 +75,7 @@ def index():
         avance_mes=avance_mes,
         vendido_mes=vendido_mes,
         canales_mes=canales_mes,
-        tiktok=tiktok,
+        publicidad=publicidad,
         clientes_frios=clientes_frios,
         hay_clientes=bool(activos),
         dias_sin_compra=DIAS_SIN_COMPRA,
