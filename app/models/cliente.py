@@ -30,6 +30,7 @@ class LineaVenta(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     venta_id = db.Column(db.Integer, db.ForeignKey("ventas.id"), nullable=False)
     referencia = db.Column(db.String(30), nullable=False, index=True)
+    descripcion = db.Column(db.String(80))                  # "Vestido Corto", "Calzado"...
     cantidad = db.Column(db.Integer, nullable=False)
     precio_unitario = db.Column(db.Integer, nullable=False)
     color = db.Column(db.String(30))
@@ -40,3 +41,20 @@ class LineaVenta(db.Model):
     @property
     def subtotal(self):
         return self.cantidad * self.precio_unitario
+
+
+class AbonoCliente(db.Model):
+    """Plata que entra porque un cliente paga un saldo de una compra anterior. No es venta nueva."""
+    __tablename__ = "abonos_clientes"
+    __table_args__ = (db.CheckConstraint("valor > 0", name="valor_positivo"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    fecha = db.Column(db.Date, nullable=False, index=True)
+    valor = db.Column(db.Integer, nullable=False)
+    medio = db.Column(db.String(20), nullable=False)
+    numero_factura = db.Column(db.Integer, unique=True, index=True)
+    cliente_id = db.Column(db.Integer, db.ForeignKey("clientes.id"))
+    notas = db.Column(db.Text)
+    creado_en = db.Column(db.DateTime, default=datetime.now)
+
+    cliente = db.relationship("Cliente")
