@@ -136,7 +136,8 @@ def dia(fecha):
             flash(f"{len(nuevas)} registros guardados. Neto: {formato_pesos(sum(v.neto for v in nuevas))}.", "success")
         return redirect(url_for("ventas.dia", fecha=fecha))
 
-    registros = (Venta.query.options(joinedload(Venta.vendedora), joinedload(Venta.cliente), selectinload(Venta.lineas))
+    registros = (Venta.query.options(joinedload(Venta.vendedora), joinedload(Venta.cliente), selectinload(Venta.lineas),
+                                     selectinload(Venta.pagos))
                  .filter_by(fecha=fecha_venta).order_by(Venta.id).all())
 
     tallas_usadas = [t for (t,) in db.session.query(LineaVenta.talla)
@@ -237,18 +238,27 @@ def buscar_cliente():
 
 def _detalle_venta(venta):
     """Toda la información de una venta guardada, para mostrarla en el recuadro de detalle."""
+    if venta.numero_factura:
+        hora = f"Factura #{venta.numero_factura}"
+    else:
+        hora = venta.creado_en.strftime("%I:%M %p") if venta.creado_en else ""
+    medio = venta.medio_pago
+    if len(venta.pagos) > 1:
+        medio = " + ".join(f"{p.medio} {formato_pesos(p.valor)}" for p in venta.pagos)
     return {
-        "hora": venta.creado_en.strftime("%I:%M %p") if venta.creado_en else "",
+        "hora": hora,
         "cliente": venta.cliente.nombre if venta.cliente else None,
         "telefono": formato_telefono(venta.cliente.telefono) if venta.cliente else None,
         "vendedora": venta.vendedora.nombre if venta.vendedora else "Sin vendedora",
-        "medio": venta.medio_pago,
+        "medio": medio,
         "contacto": venta.medio_contacto or "—",
         "tipo": "Devolución" if venta.es_devolucion else "Venta",
         "valor": venta.valor,
         "prendas": venta.prendas,
         "lineas": [{
-            "referencia": l.referencia, "color": l.color or "", "talla": l.talla or "",
+            "referencia": f"{l.referencia} · {l.descripcion}" if l.descripcion and l.descripcion != l.referencia
+            else l.referencia,
+            "color": l.color or "", "talla": l.talla or "",
             "cantidad": l.cantidad, "precio": l.precio_unitario, "subtotal": l.subtotal,
         } for l in venta.lineas],
     }

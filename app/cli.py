@@ -12,12 +12,13 @@ from sqlalchemy.orm import joinedload
 from .extensions import db
 from .services.backups import crear_backup
 from .services.importador_ventas import leer_revision, resumir
+from .services.importador_facturas import leer_facturas, numeros_faltantes, VENDEDORA_MAYORISTA
 from .services.seguridad import normalizar_usuario, validar_password
 from .services.mayoristas import es_mayorista, UMBRAL_MAYORISTA_DEFECTO
 from .utils import formato_pesos
 from .models import (Proveedor, Factura, Pago, AplicacionPago, Vendedora, Venta, Liquidacion, Meta,
                      TramoIncentivo, Objetivo, CuentaDinero, GastoRecurrente, AjusteTemporada, MEDIOS_PAGO,
-                     Parametro, Usuario)
+                     Parametro, Usuario, Cliente, LineaVenta, PagoVenta, AbonoCliente)
 from .services.abonos import distribuir_fifo
 from .services.comisiones import quincena_de, calcular_comision
 
@@ -200,6 +201,124 @@ def importar_ventas(archivo, confirmar, borrar_manuales):
     click.secho(f"\nListo: {len(ventas)} ventas importadas.", fg="green")
     if nuevas:
         click.echo("Activa en Ventas → Vendedoras a quienes sigan trabajando.")
+
+
+@click.command("importar-facturas")
+@click.argument("archivo", type=click.Path(exists=True, dir_okay=False))
+@click.option("--confirmar", is_flag=True, help="Guarda los cambios. Sin esta opción solo muestra la vista previa.")
+@with_appcontext
+def importar_facturas(archivo, confirmar):
+    """Importa el Excel de facturas del almacén (una factura puede ocupar varias filas)."""
+    ventas, abonos, avisos = leer_facturas(archivo)
+    if not ventas and not abonos:
+        raise click.ClickException("No se encontró ninguna factura para importar.")
+
+    # Lo que ya está en el panel (por número de factura) no se vuelve a meter.
+    ya_ventas = {n for (n,) in db.session.query(Venta.numero_factura).filter(Venta.numero_factura.isnot(None))}
+    ya_abonos = {n for (n,) in db.session.query(AbonoCliente.numero_factura)
+                 .filter(AbonoCliente.numero_factura.isnot(None))}
+    repetidas = [v["numero"] for v in ventas if v["numero"] in ya_ventas]
+    repetidas += [a["numero"] for a in abonos if a["numero"] in ya_abonos]
+    ventas = [v for v in ventas if v["numero"] not in ya_ventas]
+    abonos = [a for a in abonos if a["numero"] not in ya_abonos]
+
+    total = sum(v["valor"] for v in ventas)
+    click.echo(f"\n{len(ventas)} ventas por {formato_pesos(total)}, "
+               f"{sum(v['prendas'] for v in ventas)} prendas")
+    if ventas:
+        desde, hasta = min(v["fecha"] for v in ventas), max(v["fecha"] for v in ventas)
+        click.echo(f"Del {desde:%d/%m/%Y} al {hasta:%d/%m/%Y}")
+    grupos = {"Por canal": "canal", "Por vendedora": "vendedora", "Por medio de contacto": "medio_contacto"}
+    for titulo, campo in grupos.items():
+        click.echo(f"\n{titulo}")
+        suma = {}
+        for v in ventas:
+            clave = v[campo] or "Sin dato"
+            suma[clave] = suma.get(clave, 0) + v["valor"]
+        for clave, valor in sorted(suma.items(), key=lambda x: -x[1]):
+            click.echo(f"  {clave:<22}{formato_pesos(valor):>18}")
+    click.echo("\nPor medio de pago")
+    medios = {}
+    for v in ventas:
+        for medio, valor in v["pagos"].items():
+            medios[medio] = medios.get(medio, 0) + valor
+    for medio, valor in sorted(medios.items(), key=lambda x: -x[1]):
+        click.echo(f"  {medio:<22}{formato_pesos(valor):>18}")
+    for a in abonos:
+        click.echo(f"\nAbono de cliente #{a['numero']} del {a['fecha']:%d/%m/%Y}: "
+                   f"{formato_pesos(a['valor'])} ({a['medio']}). No cuenta como venta.")
+
+    faltantes = numeros_faltantes(ventas, abonos)
+    if faltantes:
+        click.echo(f"\nNúmeros de factura que no están en el Excel: {', '.join(map(str, faltantes))}")
+    if repetidas:
+        click.secho(f"\n{len(repetidas)} factura(s) ya estaban en el panel y se saltan.", fg="yellow")
+    if avisos:
+        click.secho(f"\n{len(avisos)} aviso(s):", fg="yellow")
+        for aviso in avisos:
+            click.echo(f"  {aviso}")
+
+    vendedoras = {v.nombre.lower(): v for v in Vendedora.query.all()}
+    nuevas = sorted({v["vendedora"] for v in ventas if v["vendedora"] and v["vendedora"].lower() not in vendedoras})
+    if nuevas:
+        click.echo(f"\nVendedoras nuevas (se crean activas): {', '.join(nuevas)}")
+
+    if ventas:
+        manuales = Venta.query.filter(Venta.fecha.between(desde, hasta), Venta.numero_factura.is_(None)).count()
+        if manuales:
+            click.secho(f"\nOjo: ya hay {manuales} venta(s) sin número de factura en esas fechas. "
+                        f"Revisa que no sean las mismas para no duplicar.", fg="yellow")
+
+    if not confirmar:
+        click.secho("\nVista previa: no se guardó nada. Para importar, repite el comando con --confirmar.", fg="cyan")
+        return
+
+    ruta_backup = crear_backup(current_app.config["DB_PATH"], current_app.config["BACKUP_DIR"])
+    click.echo(f"\nBackup previo: {ruta_backup}")
+
+    for nombre in nuevas:
+        mayorista = nombre == VENDEDORA_MAYORISTA
+        vendedora = Vendedora(nombre=nombre, activa=True, tasa_comision_bp=0 if mayorista else 200,
+                              vende_mayorista=mayorista)
+        db.session.add(vendedora)
+        vendedoras[nombre.lower()] = vendedora
+
+    clientes = {}
+
+    def cliente_de(dato):
+        if not dato["cliente"] and not dato["telefono"]:
+            return None
+        clave = dato["telefono"] or dato["cliente"].lower()
+        if clave in clientes:
+            return clientes[clave]
+        cliente = Cliente.query.filter_by(telefono=dato["telefono"]).first() if dato["telefono"] else None
+        if not cliente:
+            cliente = Cliente(nombre=dato["cliente"] or f"Cliente {dato['telefono']}", telefono=dato["telefono"],
+                              es_mayorista=False, autoriza_datos=False)
+            db.session.add(cliente)
+        clientes[clave] = cliente
+        return cliente
+
+    for dato in ventas:
+        cliente = cliente_de(dato)
+        if cliente and dato["canal"] == "Mayorista":
+            cliente.es_mayorista = True
+        medios_usados = list(dato["pagos"])
+        venta = Venta(
+            fecha=dato["fecha"], canal=dato["canal"], valor=dato["valor"], prendas=dato["prendas"],
+            medio_pago=medios_usados[0] if len(medios_usados) == 1 else "Mixto",
+            medio_contacto=dato["medio_contacto"], origen="factura", numero_factura=dato["numero"],
+            vendedora=vendedoras.get((dato["vendedora"] or "").lower()), cliente=cliente,
+        )
+        venta.lineas.extend(LineaVenta(**linea) for linea in dato["lineas"])
+        venta.pagos.extend(PagoVenta(medio=m, valor=v) for m, v in dato["pagos"].items())
+        db.session.add(venta)
+
+    for dato in abonos:
+        db.session.add(AbonoCliente(fecha=dato["fecha"], valor=dato["valor"], medio=dato["medio"],
+                                    numero_factura=dato["numero"], notas="Abono a saldo (importado del Excel)"))
+    db.session.commit()
+    click.secho(f"\nListo: {len(ventas)} ventas y {len(abonos)} abono(s) importados.", fg="green")
 
 
 @click.command("reclasificar-canal")

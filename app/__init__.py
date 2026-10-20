@@ -81,9 +81,9 @@ def create_app(config_class=Config):
             return redirect(url_for("auth.cuenta"))
         return None
 
-    from .cli import (seed_demo, importar_ventas, reclasificar_canal,
+    from .cli import (seed_demo, importar_ventas, importar_facturas, reclasificar_canal,
                       crear_usuario, reiniciar_2fa, desbloquear_usuario, desactivar_usuario)
-    for comando in (seed_demo, importar_ventas, reclasificar_canal,
+    for comando in (seed_demo, importar_ventas, importar_facturas, reclasificar_canal,
                     crear_usuario, reiniciar_2fa, desbloquear_usuario, desactivar_usuario):
         app.cli.add_command(comando)
 
