@@ -94,6 +94,12 @@ h2 { font-size: 1.85rem; }
 @media (max-width: 991.98px) { .contenido { padding: 1.25rem 1rem; } }
 .card { border-color: var(--borde); border-radius: 12px; }
 
+/* Aviso de vista previa por rol */
+.vista-previa { display: flex; flex-wrap: wrap; gap: .75rem; justify-content: space-between; align-items: center;
+  margin: -.5rem 0 1.5rem; padding: .7rem 1rem; border-radius: 10px; background: var(--marca); color: #fff; font-size: .9rem; }
+.vista-previa .ico { vertical-align: -3px; margin-right: .25rem; }
+.vista-previa form { margin: 0; }
+
 /* Foto de perfil en Mi cuenta */
 .avatar-grande { width: 96px; height: 96px; font-size: 2rem; }
 

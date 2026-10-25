@@ -48,6 +48,10 @@
         ('comisiones.index', 'users-round', 'Comisiones'),
         ('marketing.index', 'megaphone', 'Publicidad'),
       ]),
+      ('Redes sociales', [
+        ('redes.index', 'trending-up', 'Resumen de redes'),
+        ('redes.facturas', 'file-text', 'Facturas por redes'),
+      ]),
       ('Finanzas', [
         ('deudas.index', 'receipt-text', 'Deudas'),
         ('abonos.index', 'hand-coins', 'Abonos'),
@@ -62,14 +66,18 @@
     ] %}
     <div class="menu-secciones">
       {% for titulo, enlaces in secciones %}
+      {% set visibles = [] %}
+      {% for e in enlaces if puede_ver(e[0]) %}{% set _ = visibles.append(e) %}{% endfor %}
+      {% if visibles %}
       <div class="menu-titulo">{{ titulo }}</div>
       <ul class="menu-lista">
-        {% for endpoint, nombre_icono, nombre in enlaces %}
-        {% set activo = request.blueprint == endpoint.split('.')[0] %}
+        {% for endpoint, nombre_icono, nombre in visibles %}
+        {% set activo = request.endpoint == endpoint if endpoint.startswith('redes.') else request.blueprint == endpoint.split('.')[0] %}
         <li><a class="menu-enlace {{ 'activo' if activo }}" href="{{ url_for(endpoint) }}" {% if activo %}aria-current="page"{% endif %}>
           {{ icono(nombre_icono) }}<span>{{ nombre }}</span></a></li>
         {% endfor %}
       </ul>
+      {% endif %}
       {% endfor %}
     </div>
 
@@ -96,6 +104,12 @@
   </nav>
 
   <main class="contenido flex-grow-1">
+    {% if current_user.is_authenticated and en_vista_previa() %}
+    <div class="vista-previa">
+      <span>{{ icono('eye') }} Vista previa: así ve el panel un usuario de <strong>{{ NOMBRES_ROLES[rol_actual()] }}</strong>. No se puede guardar nada.</span>
+      <form method="post" action="{{ url_for('auth.salir_vista_previa') }}"><button class="btn btn-sm btn-light">Salir de la vista previa</button></form>
+    </div>
+    {% endif %}
     {% with mensajes = get_flashed_messages(with_categories=true) %}
       {% for categoria, msg in mensajes %}
       <div class="alert alert-{{ categoria }}">{{ msg }}</div>

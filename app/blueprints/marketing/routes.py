@@ -10,6 +10,7 @@ from ...models import Venta, InversionPublicidad, Parametro, NETO_SQL
 from ...services.comisiones import CANAL_COMISIONABLE
 from ...services.marketing import (meses_entre, inversion_del_mes, retorno_equilibrio, rentabilidad,
                                    REDES_PAUTA, PLATAFORMAS_PAUTA)
+from ...services.permisos import ve_todo
 from ...utils import a_pesos, a_bp, formato_bp, mes_desde_texto, nombre_mes
 
 MARGEN_DEFECTO_BP = 5000
@@ -64,10 +65,22 @@ def index():
         "ganancia": [f["ganancia_bruta"] - f["comisiones"] for f in filas],
         "resultado": [f["resultado"] for f in filas],
     }
+
+    completo = ve_todo()
+    if not completo:
+        # Marketing no ve margen, ganancia, comisiones ni resultado: ni en pantalla ni en los datos de la página.
+        privados = ("ganancia_bruta", "comisiones", "resultado", "estado", "participacion")
+        for fila in filas + [total]:
+            for clave in privados:
+                fila.pop(clave, None)
+        grafica = {"etiquetas": grafica["etiquetas"], "inversion": grafica["inversion"],
+                   "ventas": [f["ventas"] for f in filas]}
+        margen_bp = None
     por_red = {red: sum(f["por_red"][red] for f in filas) for red in REDES_PAUTA}
     return render_template("marketing/index.html", filas=filas, total=total, grafica=grafica, por_red=por_red,
                            redes=REDES_PAUTA, plataformas=PLATAFORMAS_PAUTA,
-                           margen_bp=margen_bp, equilibrio=retorno_equilibrio(margen_bp))
+                           margen_bp=margen_bp, completo=completo,
+                           equilibrio=retorno_equilibrio(margen_bp) if completo else None)
 
 
 @bp.route("/margen", methods=["POST"])

@@ -4,10 +4,11 @@
 {% macro retorno(valor) %}{{ ('$' ~ '%.2f'|format(valor)|replace('.', ',')) if valor is not none else '—' }}{% endmacro %}
 
 <h2 class="mb-1">Rentabilidad de la publicidad</h2>
-<p class="text-muted mb-4">Compara lo invertido en pauta (TikTok y Meta) con la ganancia que dejaron las ventas de clientes
+<p class="text-muted mb-4">Compara lo invertido en pauta (TikTok y Meta) con {{ 'la ganancia que dejaron ' if completo }}las ventas de clientes
   que llegaron por {{ redes|join(', ') }}.</p>
 
 <div class="row g-3 mb-4">
+  {% if completo %}
   <div class="col-lg-4">
     <div class="card card-body shadow-sm h-100">
       <form method="post" action="{{ url_for('marketing.guardar_margen') }}" class="d-flex gap-2 align-items-end mb-2">
@@ -21,18 +22,22 @@
         <strong>{{ retorno(equilibrio) }}</strong> para no perder plata.</small>
     </div>
   </div>
-  {% for titulo, valor, color in [
+  {% set tarjetas = [
       ('Invertido en pauta', total.inversion|pesos, 'primary'),
       ('Ventas por redes', total.ventas|pesos, 'info'),
       ('Resultado acumulado', total.resultado|pesos, 'success' if total.resultado > 0 else 'danger')] %}
-  <div class="col-lg-{{ 3 if loop.last else 2 }} col-md-4">
+  {% else %}
+  {% set tarjetas = [('Invertido en pauta', total.inversion|pesos, 'primary'), ('Ventas por redes', total.ventas|pesos, 'info')] %}
+  {% endif %}
+  {% for titulo, valor, color in tarjetas %}
+  <div class="{{ ('col-lg-3' if loop.last else 'col-lg-2') if completo else 'col-lg-5' }} col-md-4">
     <div class="card card-body shadow-sm h-100 border-start border-4 border-{{ color }}">
       <small class="text-muted">{{ titulo }}</small>
       <h5 class="text-{{ color }} mb-0">{{ valor }}</h5>
     </div>
   </div>
   {% endfor %}
-  <div class="col-lg-1 col-md-12">
+  <div class="{{ 'col-lg-1' if completo else 'col-lg-2' }} col-md-12">
     <div class="card card-body shadow-sm h-100 text-center">
       <small class="text-muted">Por cada $1</small>
       <h5 class="mb-0">{{ retorno(total.retorno) }}</h5>
@@ -58,8 +63,9 @@
 <table class="table table-sm align-middle">
   <thead class="table-light">
     <tr><th>Mes</th><th>Pauta</th><th class="text-end">Invertido</th><th class="text-end">Ventas por redes</th>
-        <th class="text-end">% del mes</th><th class="text-end">Por cada $1</th><th class="text-end">Ganancia ({{ margen_bp|porcentaje }})</th>
-        <th class="text-end">Comisiones</th><th class="text-end">Resultado</th><th></th></tr>
+        {% if completo %}<th class="text-end">% del mes</th>{% endif %}<th class="text-end">Por cada $1</th>
+        {% if completo %}<th class="text-end">Ganancia ({{ margen_bp|porcentaje }})</th>
+        <th class="text-end">Comisiones</th><th class="text-end">Resultado</th><th></th>{% endif %}</tr>
   </thead>
   <tbody>
     {% for f in filas|reverse %}
@@ -68,10 +74,12 @@
       <td class="small">
         {% for p in f.pautas %}
         <div class="text-nowrap">{{ p.canal }}: {{ p.valor_diario|pesos }}/día{% if p.dias %} × {{ p.dias }} días{% endif %}
+          {% if completo %}
           <form method="post" action="{{ url_for('marketing.eliminar_pauta', id=p.id) }}" class="d-inline"
                 onsubmit="return confirm('¿Eliminar la pauta de {{ p.canal }} de {{ f.etiqueta }}?')">
             <button class="btn btn-sm btn-link text-danger p-0 ms-1"><i class="bi bi-x-circle"></i></button>
           </form>
+          {% endif %}
         </div>
         {% else %}<span class="text-muted">Sin registrar</span>{% endfor %}
       </td>
@@ -79,20 +87,25 @@
       <td class="text-end">{{ f.ventas|pesos }}
         <div class="small text-muted text-nowrap">{% for red in redes if f.por_red[red] %}{{ red }} {{ f.por_red[red]|pesos }}{% if not loop.last %} · {% endif %}{% endfor %}</div>
       </td>
-      <td class="text-end">{{ f.participacion }}%</td>
+      {% if completo %}<td class="text-end">{{ f.participacion }}%</td>{% endif %}
+      {% if completo %}
       <td class="text-end fw-bold {{ 'text-success' if f.retorno and f.retorno >= equilibrio else 'text-danger' if f.retorno else '' }}">{{ retorno(f.retorno) }}</td>
       <td class="text-end">{{ f.ganancia_bruta|pesos }}</td>
       <td class="text-end">{{ f.comisiones|pesos }}</td>
       <td class="text-end fw-bold text-{{ 'success' if f.resultado > 0 else 'danger' }}">{{ f.resultado|pesos }}</td>
       <td><span class="badge bg-{{ colores[f.estado] }}">{{ f.estado|capitalize }}</span></td>
+      {% else %}
+      <td class="text-end fw-bold">{{ retorno(f.retorno) }}</td>
+      {% endif %}
     </tr>
     {% else %}
-    <tr><td colspan="10" class="text-center text-muted py-4">Registra la pauta y las ventas que llegan por {{ redes|join(', ') }} para ver la rentabilidad.</td></tr>
+    <tr><td colspan="{{ 10 if completo else 5 }}" class="text-center text-muted py-4">Registra la pauta y las ventas que llegan por {{ redes|join(', ') }} para ver la rentabilidad.</td></tr>
     {% endfor %}
   </tbody>
 </table>
 </div>
 
+{% if completo %}
 <div class="card card-body shadow-sm mb-3">
   <h6>Registrar pauta</h6>
   <form method="post" action="{{ url_for('marketing.guardar_pauta') }}" class="row g-2 align-items-end">
@@ -109,8 +122,9 @@
   <small class="text-muted mt-2">Un rango aplica el mismo valor a cada mes. Si un mes ya tenía pauta en esa plataforma, se actualiza. El mes en curso cuenta solo hasta hoy.</small>
 </div>
 
+{% endif %}
 <p class="small text-muted">Atribución: una venta cuenta como publicidad cuando la vendedora registra que el cliente llegó por {{ redes|join(', ') }}.
-  La calidad de este análisis depende de preguntarlo siempre. Ganancia = ventas × margen; el resultado resta además la pauta y las comisiones de esas ventas.</p>
+  La calidad de este análisis depende de preguntarlo siempre.{% if completo %} Ganancia = ventas × margen; el resultado resta además la pauta y las comisiones de esas ventas.{% endif %}</p>
 {% endblock %}
 
 {% block scripts %}
@@ -123,9 +137,13 @@
       labels: g.etiquetas,
       datasets: [
         { type: 'bar', label: 'Invertido en pauta', data: g.inversion, backgroundColor: '#dc3545' },
+        {% if completo %}
         { type: 'bar', label: 'Ganancia de las ventas (sin comisiones)', data: g.ganancia, backgroundColor: '#20c997' },
         { type: 'line', label: 'Resultado', data: g.resultado, borderColor: '#0d6efd', tension: 0.2, pointRadius: 5,
           pointBackgroundColor: g.resultado.map(v => v < 0 ? '#dc3545' : '#198754') },
+        {% else %}
+        { type: 'bar', label: 'Ventas por redes', data: g.ventas, backgroundColor: '#0f4c81' },
+        {% endif %}
       ],
     },
     options: {

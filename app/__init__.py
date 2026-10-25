@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, flash, redirect, request, url_for
+from flask import Flask, abort, flash, redirect, render_template, request, url_for
 from flask_wtf.csrf import CSRFError
 from flask_login import current_user
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -8,6 +8,8 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from config import Config
 from .extensions import db, migrate, csrf, login_manager, limiter
 from .utils import formato_pesos, formato_bp, formato_tamano
+from .services.permisos import (ROLES, ROLES_COMPLETOS, PERMITIDAS, INICIO, rol_actual, en_vista_previa,
+                                puede_ver, ve_todo)
 
 
 def create_app(config_class=Config):
@@ -61,9 +63,9 @@ def create_app(config_class=Config):
 
     # Módulos
     from .blueprints import (auth, dashboard, deudas, abonos, ventas, mayoristas, metas, comisiones,
-                             proyecciones, pagos, marketing, documentos, reportes, sistema)
+                             proyecciones, pagos, marketing, documentos, reportes, sistema, redes)
     for modulo in (auth, dashboard, deudas, abonos, ventas, mayoristas, metas, comisiones,
-                   proyecciones, pagos, marketing, documentos, reportes, sistema):
+                   proyecciones, pagos, marketing, documentos, reportes, sistema, redes):
         app.register_blueprint(modulo.bp)
 
     # Candado global: nada se ve sin iniciar sesión
@@ -79,12 +81,30 @@ def create_app(config_class=Config):
         cuenta_incompleta = current_user.debe_cambiar_password or not current_user.totp_activo
         if cuenta_incompleta and request.endpoint not in PERMITIDAS_SIN_CONFIGURAR:
             return redirect(url_for("auth.cuenta"))
+
+        # Permisos por rol (marketing solo ve lo de redes)
+        rol = rol_actual()
+        if rol not in ROLES_COMPLETOS:
+            if request.endpoint not in PERMITIDAS.get(rol, set()):
+                if request.endpoint == "dashboard.index":
+                    return redirect(url_for(INICIO.get(rol, "auth.cuenta")))
+                abort(403)
+            # En la vista previa del super administrador no se puede guardar nada
+            if en_vista_previa() and request.method == "POST" and request.endpoint != "auth.salir_vista_previa":
+                abort(403)
         return None
 
+    app.jinja_env.globals.update(puede_ver=puede_ver, ve_todo=ve_todo, rol_actual=rol_actual,
+                                 en_vista_previa=en_vista_previa, NOMBRES_ROLES=ROLES)
+
+    @app.errorhandler(403)
+    def sin_permiso(error):
+        return render_template("errores/403.html"), 403
+
     from .cli import (seed_demo, importar_ventas, importar_facturas, reclasificar_canal,
-                      crear_usuario, cambiar_cargo, reiniciar_2fa, desbloquear_usuario, desactivar_usuario)
+                      crear_usuario, cambiar_cargo, cambiar_rol, reiniciar_2fa, desbloquear_usuario, desactivar_usuario)
     for comando in (seed_demo, importar_ventas, importar_facturas, reclasificar_canal,
-                    crear_usuario, cambiar_cargo, reiniciar_2fa, desbloquear_usuario, desactivar_usuario):
+                    crear_usuario, cambiar_cargo, cambiar_rol, reiniciar_2fa, desbloquear_usuario, desactivar_usuario):
         app.cli.add_command(comando)
 
     # Filtros de plantilla

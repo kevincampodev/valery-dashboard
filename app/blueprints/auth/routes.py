@@ -10,6 +10,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from . import bp
 from ...extensions import db, limiter
 from ...models import Usuario, EventoAcceso
+from ...services.permisos import PERMITIDAS, INICIO, ROLES
 from ...services.perfil import guardar_foto, borrar_foto, carpeta_perfiles, validar_nombre
 from ...services.seguridad import (normalizar_usuario, esta_bloqueado, minutos_restantes,
                                    registrar_intento_fallido, registrar_ingreso_exitoso, validar_password)
@@ -182,6 +183,25 @@ def editar_perfil():
     usuario.nombre = nombre
     db.session.commit()
     flash("Perfil actualizado.", "success")
+    return redirect(url_for("auth.cuenta"))
+
+
+@bp.route("/cuenta/vista-previa", methods=["POST"])
+def vista_previa():
+    """Solo el super administrador: ver el panel como lo ve otro rol, sin entrar a la cuenta de nadie."""
+    rol = request.form.get("rol")
+    if current_user.rol != "superadmin" or rol not in PERMITIDAS:
+        abort(403)
+    session["vista_rol"] = rol
+    _registrar_evento(current_user.usuario, True, f"vista previa como {ROLES[rol]}")
+    db.session.commit()
+    return redirect(url_for(INICIO[rol]))
+
+
+@bp.route("/cuenta/vista-previa/salir", methods=["POST"])
+def salir_vista_previa():
+    session.pop("vista_rol", None)
+    flash("Saliste de la vista previa.", "info")
     return redirect(url_for("auth.cuenta"))
 
 

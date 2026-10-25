@@ -14,6 +14,7 @@ from .services.backups import crear_backup
 from .services.importador_ventas import leer_revision, resumir
 from .services.importador_facturas import leer_facturas, numeros_faltantes, VENDEDORA_MAYORISTA
 from .services.seguridad import normalizar_usuario, validar_password
+from .services.permisos import ROLES
 from .services.mayoristas import es_mayorista, UMBRAL_MAYORISTA_DEFECTO
 from .utils import formato_pesos
 from .models import (Proveedor, Factura, Pago, AplicacionPago, Vendedora, Venta, Liquidacion, Meta,
@@ -378,9 +379,11 @@ def _buscar_usuario(usuario):
 @click.command("crear-usuario")
 @click.argument("usuario")
 @click.option("--nombre", prompt="Nombre completo", help="Nombre que se muestra en el menú.")
+@click.option("--rol", type=click.Choice(list(ROLES)), default="admin", show_default=True,
+              help="Qué puede ver: superadmin y admin todo; marketing solo redes sociales.")
 @with_appcontext
-def crear_usuario(usuario, nombre):
-    """Crea un administrador con una contraseña temporal."""
+def crear_usuario(usuario, nombre, rol):
+    """Crea un usuario con una contraseña temporal."""
     usuario = normalizar_usuario(usuario)
     if not re.fullmatch(r"[a-z0-9._-]{3,40}", usuario):
         raise click.ClickException("El usuario debe tener de 3 a 40 caracteres: letras, números, punto, guion o guion bajo.")
@@ -388,12 +391,12 @@ def crear_usuario(usuario, nombre):
         raise click.ClickException(f"Ya existe el usuario '{usuario}'.")
 
     password = _password_temporal()
-    nuevo = Usuario(usuario=usuario, nombre=nombre.strip(), debe_cambiar_password=True)
+    nuevo = Usuario(usuario=usuario, nombre=nombre.strip(), rol=rol, cargo=ROLES[rol], debe_cambiar_password=True)
     nuevo.fijar_password(password)
     db.session.add(nuevo)
     db.session.commit()
 
-    click.secho(f"\nUsuario '{usuario}' creado.", fg="green")
+    click.secho(f"\nUsuario '{usuario}' creado con rol {ROLES[rol]}.", fg="green")
     click.echo(f"Contraseña temporal: {password}")
     click.secho("Entrégasela en persona. Al ingresar deberá cambiarla y activar la verificación en dos pasos.", fg="yellow")
 
@@ -411,6 +414,20 @@ def cambiar_cargo(usuario, cargo):
     cuenta.cargo = cargo
     db.session.commit()
     click.secho(f"{cuenta.nombre} ahora aparece como: {cargo}", fg="green")
+
+
+@click.command("cambiar-rol")
+@click.argument("usuario")
+@click.argument("rol", type=click.Choice(list(ROLES)))
+@with_appcontext
+def cambiar_rol(usuario, rol):
+    """Cambia lo que puede ver un usuario. Ej: cambiar-rol jose marketing. También actualiza su cargo."""
+    cuenta = _buscar_usuario(usuario)
+    cuenta.rol = rol
+    cuenta.cargo = ROLES[rol]
+    cuenta.version_sesion += 1          # cierra sus sesiones abiertas para que el cambio aplique ya
+    db.session.commit()
+    click.secho(f"{cuenta.nombre} ahora tiene el rol {ROLES[rol]}. Debe volver a iniciar sesión.", fg="green")
 
 
 @click.command("reiniciar-2fa")

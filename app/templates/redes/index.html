@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block content %}
+{% macro cambio(valor) %}
+  {% if valor is none %}<span class="text-muted small">sin datos del mes anterior</span>
+  {% elif valor >= 0 %}<span class="text-success small fw-semibold">▲ {{ valor }}%</span>
+  {% else %}<span class="text-danger small fw-semibold">▼ {{ valor|abs }}%</span>{% endif %}
+{% endmacro %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">
+  <div class="d-flex align-items-center gap-2">
+    <a href="{{ url_for('redes.index', mes=anterior) }}" class="btn btn-outline-secondary btn-sm" aria-label="Mes anterior">‹</a>
+    <h2 class="mb-0">Redes sociales · {{ titulo }}</h2>
+    <a href="{{ url_for('redes.index', mes=siguiente) }}" class="btn btn-outline-secondary btn-sm" aria-label="Mes siguiente">›</a>
+  </div>
+  <a href="{{ url_for('redes.facturas', mes=mes) }}" class="btn btn-outline-primary">Ver facturas</a>
+</div>
+<p class="text-muted mb-4">Ventas de clientes que llegaron por TikTok, Facebook o Instagram.
+  Se compara con el {{ comparado[0].strftime('%d/%m') }} al {{ comparado[1].strftime('%d/%m') }}.</p>
+
+<div class="row g-3 mb-4">
+  {% for red in redes + ['Total'] %}
+  {% set d = resumen[red] %}
+  <div class="col-md-6 col-xl-3">
+    <div class="card card-body shadow-sm h-100">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        {% if red != 'Total' %}<span class="rounded-circle" style="width:10px;height:10px;background:{{ colores[red] }}"></span>{% endif %}
+        <span class="text-muted small fw-semibold text-uppercase">{{ red }}</span>
+      </div>
+      <h4 class="mb-1">{{ d.total|pesos }}</h4>
+      <div class="mb-2">{{ cambio(d.variacion) }}</div>
+      <div class="small text-muted d-flex justify-content-between"><span>Ventas</span><span>{{ d.numero }} {{ cambio(d.variacion_numero) }}</span></div>
+      <div class="small text-muted d-flex justify-content-between"><span>Valor promedio</span><span>{{ d.promedio|pesos }}</span></div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-7">
+    <div class="card card-body shadow-sm h-100">
+      <h5 class="mb-3">Ventas por día de la semana</h5>
+      <div style="height:280px"><canvas id="grafSemana"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card card-body shadow-sm h-100">
+      <h5 class="mb-1">Clientes nuevos y que repiten</h5>
+      <p class="small text-muted">Nuevo: su primera compra fue este mes. Cada cliente se cuenta una vez.</p>
+      <table class="table table-sm align-middle mb-0">
+        <thead><tr><th>Red</th><th class="text-end">Nuevos</th><th class="text-end">Repiten</th><th class="text-end">Sin registrar</th></tr></thead>
+        <tbody>
+          {% for red in redes %}
+          <tr><td>{{ red }}</td><td class="text-end">{{ clientes[red].nuevos }}</td>
+              <td class="text-end">{{ clientes[red].repiten }}</td><td class="text-end text-muted">{{ clientes[red].sin_dato }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="small text-muted mt-2 mb-0">"Sin registrar": ventas donde no se anotó el celular del cliente.</p>
+    </div>
+  </div>
+</div>
+
+<div class="card card-body shadow-sm mb-4">
+  <h5 class="mb-1">Prendas más vendidas por redes</h5>
+  <p class="small text-muted">Las {{ referencias|length }} referencias con más unidades vendidas este mes a clientes que llegaron por redes.</p>
+  <div class="table-responsive">
+  <table class="table table-sm align-middle mb-0">
+    <thead><tr><th>#</th><th>Referencia</th><th>Descripción</th><th class="text-end">Unidades</th><th class="text-end">Ventas</th></tr></thead>
+    <tbody>
+      {% for ref, descripcion, unidades, ventas in referencias %}
+      <tr><td class="text-muted">{{ loop.index }}</td><td class="fw-semibold">{{ ref }}</td><td>{{ descripcion or '—' }}</td>
+          <td class="text-end">{{ unidades }}</td><td class="text-end">{{ ventas }}</td></tr>
+      {% else %}
+      <tr><td colspan="5" class="text-center text-muted py-3">Este mes no hay prendas registradas en ventas por redes.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const g = {{ grafica|tojson }};
+  const colores = {{ colores|tojson }};
+  new Chart(document.getElementById('grafSemana'), {
+    type: 'bar',
+    data: {
+      labels: g.dias,
+      datasets: Object.keys(g.series).map(red => ({ label: red, data: g.series[red], backgroundColor: colores[red], borderRadius: 4 })),
+    },
+    options: {
+      maintainAspectRatio: false,
+      scales: { x: { stacked: true }, y: { stacked: true, ticks: { callback: v => '$' + (v / 1e6).toLocaleString('es-CO') + 'M' } } },
+      plugins: { tooltip: { callbacks: { label: c => c.dataset.label + ': $' + Math.round(c.raw).toLocaleString('es-CO') } } },
+    },
+  });
+</script>
+{% endblock %}

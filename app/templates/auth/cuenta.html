@@ -54,6 +54,22 @@
   <div class="text-end mt-3"><button class="btn btn-primary">Guardar perfil</button></div>
 </form>
 
+{% if usuario.rol == 'superadmin' and not en_vista_previa() %}
+<div class="card card-body shadow-sm mb-3">
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+    <div>
+      <h5 class="mb-1">Vista previa por rol</h5>
+      <p class="small text-muted mb-0">Mira el panel exactamente como lo ve el equipo de marketing, sin entrar a su cuenta.
+        Mientras estés en la vista previa no se puede guardar nada.</p>
+    </div>
+    <form method="post" action="{{ url_for('auth.vista_previa') }}">
+      <input type="hidden" name="rol" value="marketing">
+      <button class="btn btn-outline-primary text-nowrap">Ver como Marketing</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
 <div class="row g-3">
   <div class="col-lg-6">
     <form method="post" action="{{ url_for('auth.cambiar_password') }}" class="card card-body shadow-sm h-100">
