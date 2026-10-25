@@ -12,6 +12,8 @@ class Usuario(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     usuario = db.Column(db.String(40), nullable=False, unique=True)     # con el que inicia sesión, en minúsculas
     nombre = db.Column(db.String(80), nullable=False)
+    cargo = db.Column(db.String(40), nullable=False, default="Administrador", server_default="Administrador")
+    foto = db.Column(db.String(80))                                      # archivo en instance/uploads/perfiles
     password_hash = db.Column(db.String(255), nullable=False)
     activo = db.Column(db.Boolean, nullable=False, default=True)
     debe_cambiar_password = db.Column(db.Boolean, nullable=False, default=True)
@@ -35,6 +37,12 @@ class Usuario(UserMixin, db.Model):
     @property
     def is_active(self):
         return self.activo
+
+    @property
+    def iniciales(self):
+        """'Alejandro Campo' -> 'AC'. Se muestran cuando no hay foto."""
+        partes = self.nombre.split()
+        return "".join(p[0] for p in partes[:2]).upper() or "?"
 
     def get_id(self):
         return f"{self.id}-{self.version_sesion}"

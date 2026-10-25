@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<h2 class="mb-3"><i class="bi bi-person-gear"></i> Mi cuenta</h2>
+<h2 class="mb-3">Mi cuenta</h2>
 
 {% if usuario.debe_cambiar_password or not usuario.totp_activo %}
 <div class="alert alert-warning">
@@ -11,10 +11,53 @@
 </div>
 {% endif %}
 
+<form method="post" action="{{ url_for('auth.editar_perfil') }}" enctype="multipart/form-data" class="card card-body shadow-sm mb-3">
+  <h5 class="mb-3">Perfil</h5>
+  <div class="d-flex flex-column flex-md-row gap-4 align-items-md-center">
+    <div class="text-center">
+      {% if usuario.foto %}
+      <img id="vistaFoto" src="{{ url_for('auth.foto', id=usuario.id, v=usuario.foto[:8]) }}" alt="Foto de perfil" class="avatar avatar-grande">
+      {% else %}
+      <span id="inicialesFoto" class="avatar avatar-iniciales avatar-grande">{{ usuario.iniciales }}</span>
+      <img id="vistaFoto" alt="Foto de perfil" class="avatar avatar-grande d-none">
+      {% endif %}
+      <label class="btn btn-sm btn-outline-secondary d-block mt-2">
+        Cambiar foto
+        <input type="file" name="foto" id="campoFoto" accept="image/jpeg,image/png,image/webp" hidden>
+      </label>
+      {% if usuario.foto %}
+      <div class="form-check small mt-1 text-start">
+        <input class="form-check-input" type="checkbox" name="quitar_foto" value="1" id="quitarFoto">
+        <label class="form-check-label" for="quitarFoto">Quitar foto</label>
+      </div>
+      {% endif %}
+    </div>
+    <div class="flex-grow-1">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label small mb-1" for="campoNombre">Nombre</label>
+          <input id="campoNombre" name="nombre" class="form-control" value="{{ usuario.nombre }}" minlength="2" maxlength="80" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small mb-1">Cargo</label>
+          <input class="form-control" value="{{ usuario.cargo }}" disabled>
+          <div class="form-text">Lo asigna el administrador del sistema.</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small mb-1">Usuario para ingresar</label>
+          <input class="form-control" value="{{ usuario.usuario }}" disabled>
+        </div>
+      </div>
+      <p class="small text-muted mt-3 mb-0">Foto en JPG, PNG o WEBP, de máximo 2 MB.</p>
+    </div>
+  </div>
+  <div class="text-end mt-3"><button class="btn btn-primary">Guardar perfil</button></div>
+</form>
+
 <div class="row g-3">
   <div class="col-lg-6">
     <form method="post" action="{{ url_for('auth.cambiar_password') }}" class="card card-body shadow-sm h-100">
-      <h5><i class="bi bi-key"></i> Cambiar contraseña</h5>
+      <h5>Cambiar contraseña</h5>
       <p class="small text-muted">Mínimo 10 caracteres, con letras y números. No puede contener tu usuario ni tu nombre.</p>
       <input type="password" name="actual" class="form-control mb-2" placeholder="Contraseña actual" autocomplete="current-password" required>
       <input type="password" name="nueva" class="form-control mb-2" placeholder="Nueva contraseña" autocomplete="new-password" minlength="10" required>
@@ -25,7 +68,7 @@
 
   <div class="col-lg-6">
     <div class="card card-body shadow-sm h-100">
-      <h5><i class="bi bi-phone"></i> Verificación en dos pasos</h5>
+      <h5>Verificación en dos pasos</h5>
       {% if usuario.totp_activo %}
         <div class="alert alert-success mb-0"><i class="bi bi-shield-check"></i> Activa. Al ingresar se te pedirá el código del celular.</div>
       {% else %}
@@ -46,7 +89,7 @@
 </div>
 
 <div class="card card-body shadow-sm mt-3">
-  <h5><i class="bi bi-clock-history"></i> Tus últimos accesos</h5>
+  <h5>Tus últimos accesos</h5>
   <p class="small text-muted">Si ves un ingreso que no reconoces, cambia tu contraseña de inmediato y avisa.</p>
   <table class="table table-sm mb-0">
     <thead><tr><th>Fecha</th><th>Resultado</th><th>IP</th><th>Navegador</th></tr></thead>
@@ -64,4 +107,18 @@
     </tbody>
   </table>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Muestra la foto elegida antes de guardar
+  document.getElementById('campoFoto').addEventListener('change', e => {
+    const archivo = e.target.files[0];
+    if (!archivo) return;
+    const vista = document.getElementById('vistaFoto');
+    vista.src = URL.createObjectURL(archivo);
+    vista.classList.remove('d-none');
+    document.getElementById('inicialesFoto')?.classList.add('d-none');
+  });
+</script>
 {% endblock %}

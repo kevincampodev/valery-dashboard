@@ -82,9 +82,9 @@ def create_app(config_class=Config):
         return None
 
     from .cli import (seed_demo, importar_ventas, importar_facturas, reclasificar_canal,
-                      crear_usuario, reiniciar_2fa, desbloquear_usuario, desactivar_usuario)
+                      crear_usuario, cambiar_cargo, reiniciar_2fa, desbloquear_usuario, desactivar_usuario)
     for comando in (seed_demo, importar_ventas, importar_facturas, reclasificar_canal,
-                    crear_usuario, reiniciar_2fa, desbloquear_usuario, desactivar_usuario):
+                    crear_usuario, cambiar_cargo, reiniciar_2fa, desbloquear_usuario, desactivar_usuario):
         app.cli.add_command(comando)
 
     # Filtros de plantilla
