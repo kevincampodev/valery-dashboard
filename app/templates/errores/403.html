@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card card-body shadow-sm text-center py-5" style="max-width:520px;margin:3rem auto">
+  <h2 class="mb-2">Sin acceso</h2>
+  <p class="text-muted mb-4">Tu usuario no tiene permiso para ver esta sección{% if en_vista_previa() %} ni para guardar cambios en la vista previa{% endif %}.</p>
+  <div><a href="{{ url_for('dashboard.index') }}" class="btn btn-primary">Ir al inicio</a></div>
+</div>
+{% endblock %}

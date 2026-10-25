@@ -12,6 +12,7 @@ class Usuario(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     usuario = db.Column(db.String(40), nullable=False, unique=True)     # con el que inicia sesión, en minúsculas
     nombre = db.Column(db.String(80), nullable=False)
+    rol = db.Column(db.String(20), nullable=False, default="admin", server_default="admin")  # ver services/permisos.py
     cargo = db.Column(db.String(40), nullable=False, default="Administrador", server_default="Administrador")
     foto = db.Column(db.String(80))                                      # archivo en instance/uploads/perfiles
     password_hash = db.Column(db.String(255), nullable=False)

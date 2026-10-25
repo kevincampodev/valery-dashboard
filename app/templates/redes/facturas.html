@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">
+  <div class="d-flex align-items-center gap-2">
+    <a href="{{ url_for('redes.facturas', mes=anterior, red=red) }}" class="btn btn-outline-secondary btn-sm" aria-label="Mes anterior">‹</a>
+    <h2 class="mb-0">Facturas por redes · {{ titulo }}</h2>
+    <a href="{{ url_for('redes.facturas', mes=siguiente, red=red) }}" class="btn btn-outline-secondary btn-sm" aria-label="Mes siguiente">›</a>
+  </div>
+  <a href="{{ url_for('redes.descargar', mes=mes, red=red) }}" class="btn btn-outline-primary">Descargar Excel</a>
+</div>
+<p class="text-muted mb-3">Ventas de clientes que llegaron por TikTok, Facebook o Instagram.</p>
+
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <a href="{{ url_for('redes.facturas', mes=mes) }}" class="btn btn-sm {{ 'btn-primary' if not red else 'btn-outline-secondary' }}">Todas</a>
+  {% for r in redes %}
+  <a href="{{ url_for('redes.facturas', mes=mes, red=r) }}" class="btn btn-sm {{ 'btn-primary' if red == r else 'btn-outline-secondary' }}">{{ r }}</a>
+  {% endfor %}
+</div>
+
+<div class="card card-body shadow-sm">
+  <div class="d-flex justify-content-between mb-2">
+    <span class="text-muted">{{ filas|length }} factura(s)</span>
+    <strong>Total: {{ total|pesos }}</strong>
+  </div>
+  <div class="table-responsive">
+  <table class="table table-sm table-hover align-middle mb-0">
+    <thead><tr><th>Fecha</th><th>N.º factura</th><th>Red social</th><th class="text-end">Valor</th></tr></thead>
+    <tbody>
+      {% for f in filas %}
+      <tr>
+        <td>{{ f.fecha.strftime('%d/%m/%Y') }}</td>
+        <td>{{ f.numero or '—' }}</td>
+        <td>{{ f.red }}</td>
+        <td class="text-end {{ 'text-danger' if f.valor < 0 }}">{{ f.valor|pesos }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="text-center text-muted py-4">No hay ventas por redes en este mes.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}
