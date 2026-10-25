@@ -3,7 +3,7 @@ CSP = "; ".join([
     "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
     "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
     "font-src 'self' https://cdn.jsdelivr.net",
-    "img-src 'self' data:",
+    "img-src 'self' data: blob:",          # blob: vista previa de la foto de perfil
     "connect-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",

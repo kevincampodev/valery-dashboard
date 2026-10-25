@@ -1,9 +1,107 @@
-.sidebar { width: 240px; min-height: 100vh; }
-.sidebar .nav-link.active { background: rgba(255,255,255,.15); border-radius: 6px; }
+/* ===== Tipografía: Inter, la más parecida a la de Apple (San Francisco), servida desde el panel ===== */
+@font-face { font-family: "Inter"; font-weight: 400; font-display: swap;
+  src: url("../fonts/inter-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 500; font-display: swap;
+  src: url("../fonts/inter-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 600; font-display: swap;
+  src: url("../fonts/inter-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 700; font-display: swap;
+  src: url("../fonts/inter-latin-700-normal.woff2") format("woff2"); }
+
+/* ===== Colores de la marca: se cambian aquí y se aplican en todo el panel ===== */
+:root {
+  --marca: #0f4c81;            /* azul océano */
+  --marca-suave: #e8f0f8;      /* fondo del enlace activo */
+  --tinta: #1d1d1f;            /* texto principal (el negro de Apple) */
+  --tinta-suave: #5f6368;      /* texto secundario */
+  --tinta-tenue: #9aa0a6;      /* títulos de sección, cargo */
+  --fondo: #f5f5f7;            /* fondo de la página (gris claro tipo Apple) */
+  --superficie: #ffffff;       /* menú y tarjetas */
+  --borde: #e6e6ea;
+  --hover: #f2f2f5;
+
+  --bs-body-font-family: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --bs-body-bg: var(--fondo);
+  --bs-body-color: var(--tinta);
+}
+
+body { -webkit-font-smoothing: antialiased; }
+h1, h2, h3 { font-weight: 600; letter-spacing: -.022em; }
+h2 { font-size: 1.85rem; }
+
+.ico { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentColor;
+  stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ===== Logo ===== */
+.marca { display: block; line-height: 0; }
+.marca img { width: 210px; height: auto; }
+.barra-movil .marca img { width: 160px; }
+
+/* ===== Menú lateral ===== */
+.menu-lateral { background: var(--superficie); }
+@media (min-width: 992px) {
+  .menu-lateral { width: 264px; height: 100vh; position: sticky; top: 0; display: flex; flex-direction: column;
+    box-shadow: 1px 0 0 var(--borde), 8px 0 32px rgba(15, 30, 60, .06); z-index: 10; }
+}
+@media (max-width: 991.98px) {
+  .menu-lateral.offcanvas-lg { width: 280px; display: flex; flex-direction: column; }
+}
+.menu-cabecera { display: flex; justify-content: space-between; align-items: center;
+  padding: 1.75rem 1.5rem 1.25rem; border-bottom: 1px solid var(--borde); }
+.aviso-base { margin: .75rem 1.5rem 0; padding: .3rem .6rem; border-radius: 6px; font-size: .72rem;
+  font-weight: 600; background: #fff4d6; color: #8a6100; }
+
+.menu-secciones { flex: 1; overflow-y: auto; padding: .5rem .9rem 1rem; }
+.menu-titulo { margin: 1rem .6rem .3rem; font-size: .66rem; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--tinta-tenue); }
+.menu-lista { list-style: none; margin: 0; padding: 0; }
+.menu-enlace { position: relative; display: flex; align-items: center; gap: .75rem; padding: .5rem .7rem;
+  margin-bottom: 2px; border-radius: 9px; font-size: .9rem; font-weight: 500; color: var(--tinta-suave);
+  text-decoration: none; transition: background .15s, color .15s; }
+.menu-enlace:hover { background: var(--hover); color: var(--tinta); }
+.menu-enlace.activo { background: var(--marca-suave); color: var(--marca); font-weight: 600; }
+.menu-enlace.activo::before { content: ""; position: absolute; left: -.9rem; top: 22%; bottom: 22%;
+  width: 3px; border-radius: 0 3px 3px 0; background: var(--marca); }
+
+/* ===== Sesión activa ===== */
+.sesion { display: flex; align-items: center; gap: .5rem; margin: .75rem .9rem 1rem; padding: .7rem;
+  border: 1px solid var(--borde); border-radius: 12px; background: #fafafb; }
+.sesion-perfil { display: flex; align-items: center; gap: .65rem; flex: 1; min-width: 0; text-decoration: none; }
+.avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+  box-shadow: 0 0 0 2px var(--superficie), 0 0 0 3px var(--borde); }
+.avatar-iniciales { display: inline-flex; align-items: center; justify-content: center; background: var(--marca);
+  color: #fff; font-weight: 600; font-size: .95rem; letter-spacing: .02em; }
+.sesion-datos { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.sesion-nombre { font-weight: 600; font-size: .88rem; color: var(--tinta); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.sesion-cargo { font-size: .74rem; color: var(--tinta-tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sesion-perfil:hover .sesion-nombre { color: var(--marca); }
+.sesion-acciones { display: flex; gap: .15rem; }
+.sesion-acciones form { margin: 0; }
+
+.btn-icono { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px;
+  border: 0; border-radius: 8px; background: transparent; color: var(--tinta-suave); }
+.btn-icono:hover { background: var(--hover); color: var(--tinta); }
+.btn-icono-salir:hover { background: #fbe9e9; color: #b42318; }
+
+/* ===== Barra superior en celular ===== */
+.barra-movil { position: sticky; top: 0; z-index: 20; display: flex; align-items: center;
+  justify-content: space-between; padding: .7rem 1rem; background: var(--superficie);
+  box-shadow: 0 1px 0 var(--borde), 0 6px 20px rgba(15, 30, 60, .05); }
+
+/* ===== Contenido ===== */
+.contenido { min-width: 0; padding: 2rem 2.25rem; }
+@media (max-width: 991.98px) { .contenido { padding: 1.25rem 1rem; } }
+.card { border-color: var(--borde); border-radius: 12px; }
+
+/* Foto de perfil en Mi cuenta */
+.avatar-grande { width: 96px; height: 96px; font-size: 2rem; }
+
 .firma { border-top: 1px solid #000; margin-top: 70px; padding-top: 6px; font-size: .9rem; }
 
 @media print {
-  .sidebar, .no-print, .alert { display: none !important; }
+  .menu-lateral, .barra-movil, .no-print, .alert { display: none !important; }
   main { padding: 0 !important; }
+  body { background: #fff; }
   .comprobante { border: none !important; box-shadow: none !important; }
 }

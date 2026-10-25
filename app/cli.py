@@ -398,6 +398,21 @@ def crear_usuario(usuario, nombre):
     click.secho("Entrégasela en persona. Al ingresar deberá cambiarla y activar la verificación en dos pasos.", fg="yellow")
 
 
+@click.command("cambiar-cargo")
+@click.argument("usuario")
+@click.argument("cargo")
+@with_appcontext
+def cambiar_cargo(usuario, cargo):
+    """Cambia el cargo que se muestra en el menú. Ej: cambiar-cargo alejo "Super administrador"."""
+    cargo = " ".join(cargo.split())
+    if not 2 <= len(cargo) <= 40:
+        raise click.ClickException("El cargo debe tener entre 2 y 40 caracteres.")
+    cuenta = _buscar_usuario(usuario)
+    cuenta.cargo = cargo
+    db.session.commit()
+    click.secho(f"{cuenta.nombre} ahora aparece como: {cargo}", fg="green")
+
+
 @click.command("reiniciar-2fa")
 @click.argument("usuario")
 @with_appcontext

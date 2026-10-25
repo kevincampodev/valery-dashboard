@@ -3,13 +3,14 @@ from datetime import datetime
 import pyotp
 import qrcode
 import qrcode.image.svg
-from flask import render_template, request, redirect, url_for, flash, session
+from flask import render_template, request, redirect, url_for, flash, session, send_from_directory, abort
 from flask_login import login_user, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from . import bp
 from ...extensions import db, limiter
 from ...models import Usuario, EventoAcceso
+from ...services.perfil import guardar_foto, borrar_foto, carpeta_perfiles, validar_nombre
 from ...services.seguridad import (normalizar_usuario, esta_bloqueado, minutos_restantes,
                                    registrar_intento_fallido, registrar_ingreso_exitoso, validar_password)
 
@@ -156,6 +157,41 @@ def cuenta():
     accesos = (EventoAcceso.query.filter_by(usuario=usuario.usuario)
                .order_by(EventoAcceso.fecha.desc()).limit(10).all())
     return render_template("auth/cuenta.html", usuario=usuario, qr=qr, secreto=secreto, accesos=accesos)
+
+
+@bp.route("/cuenta/perfil", methods=["POST"])
+def editar_perfil():
+    usuario = current_user
+    nombre, error = validar_nombre(request.form.get("nombre"))
+    if error:
+        flash(error, "danger")
+        return redirect(url_for("auth.cuenta"))
+
+    archivo = request.files.get("foto")
+    if archivo and archivo.filename:
+        nueva, error = guardar_foto(archivo)
+        if error:
+            flash(error, "danger")
+            return redirect(url_for("auth.cuenta"))
+        borrar_foto(usuario.foto)
+        usuario.foto = nueva
+    elif request.form.get("quitar_foto") == "1":
+        borrar_foto(usuario.foto)
+        usuario.foto = None
+
+    usuario.nombre = nombre
+    db.session.commit()
+    flash("Perfil actualizado.", "success")
+    return redirect(url_for("auth.cuenta"))
+
+
+@bp.route("/cuenta/foto/<int:id>")
+def foto(id):
+    """Foto de perfil. Solo la ve quien inició sesión (el candado global lo exige)."""
+    usuario = db.get_or_404(Usuario, id)
+    if not usuario.foto:
+        abort(404)
+    return send_from_directory(carpeta_perfiles(), usuario.foto, max_age=86400)
 
 
 @bp.route("/cuenta/password", methods=["POST"])

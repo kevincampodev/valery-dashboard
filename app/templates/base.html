@@ -10,54 +10,92 @@
   <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
-<div class="d-flex">
-  <nav class="sidebar bg-dark text-white p-3">
-    <h5 class="mb-1"><i class="bi bi-bag-heart"></i> Dashboard</h5>
-    <small class="text-secondary d-block mb-3">{{ config.EMPRESA_NOMBRE }}</small>
+{% macro icono(nombre, clase='') %}<svg class="ico {{ clase }}" aria-hidden="true"><use href="{{ url_for('static', filename='img/iconos.svg') }}#{{ nombre }}"></use></svg>{% endmacro %}
+{% macro marca() %}
+  <a href="{{ url_for('dashboard.index') }}" class="marca" aria-label="Dany Fashion · Inicio">
+    <img src="{{ url_for('static', filename='img/logo-dany-fashion.png') }}" alt="Dany Fashion — Disvalery Fashion Cali SAS">
+  </a>
+{% endmacro %}
+
+{# Barra superior: solo en celular, abre el menú #}
+<header class="barra-movil d-lg-none">
+  {{ marca() }}
+  <button class="btn-icono" type="button" data-bs-toggle="offcanvas" data-bs-target="#menuLateral" aria-label="Abrir menú">
+    {{ icono('menu') }}
+  </button>
+</header>
+
+<div class="d-lg-flex">
+  <nav id="menuLateral" class="menu-lateral offcanvas-lg offcanvas-start" tabindex="-1" aria-label="Menú principal">
+    <div class="menu-cabecera">
+      {{ marca() }}
+      <button class="btn-icono d-lg-none" type="button" data-bs-dismiss="offcanvas" data-bs-target="#menuLateral" aria-label="Cerrar menú">
+        {{ icono('x') }}
+      </button>
+    </div>
     {% if config.DB_NAME != 'valery.db' %}
-    <span class="badge bg-warning text-dark mb-3">Base: {{ config.DB_NAME }}</span>
+    <span class="aviso-base">Base de prueba: {{ config.DB_NAME }}</span>
     {% endif %}
-    {% set modulos = [
-      ('dashboard.index', 'bi-speedometer2', 'Inicio'),
-      ('deudas.index', 'bi-receipt', 'Deudas'),
-      ('abonos.index', 'bi-cash-coin', 'Abonos'),
-      ('pagos.index', 'bi-calendar-event', 'Pagos pendientes'),
-      ('ventas.index', 'bi-graph-up', 'Ventas diarias'),
-      ('mayoristas.index', 'bi-shop', 'Mayoristas'),
-      ('metas.index', 'bi-bullseye', 'Metas'),
-      ('comisiones.index', 'bi-people', 'Comisiones'),
-      ('proyecciones.index', 'bi-bar-chart-line', 'Proyecciones'),
-      ('marketing.index', 'bi-megaphone', 'Publicidad'),
-      ('documentos.index', 'bi-folder2-open', 'Documentos'),
-      ('reportes.index', 'bi-file-earmark-spreadsheet', 'Reportes'),
-      ('sistema.index', 'bi-shield-check', 'Sistema'),
+
+    {% set secciones = [
+      ('General', [
+        ('dashboard.index', 'layout-dashboard', 'Inicio'),
+      ]),
+      ('Ventas', [
+        ('ventas.index', 'shopping-bag', 'Ventas diarias'),
+        ('mayoristas.index', 'store', 'Mayoristas'),
+        ('metas.index', 'target', 'Metas'),
+        ('comisiones.index', 'users-round', 'Comisiones'),
+        ('marketing.index', 'megaphone', 'Publicidad'),
+      ]),
+      ('Finanzas', [
+        ('deudas.index', 'receipt-text', 'Deudas'),
+        ('abonos.index', 'hand-coins', 'Abonos'),
+        ('pagos.index', 'calendar-clock', 'Pagos pendientes'),
+        ('proyecciones.index', 'chart-line', 'Proyecciones'),
+      ]),
+      ('Administración', [
+        ('documentos.index', 'folder-open', 'Documentos'),
+        ('reportes.index', 'file-spreadsheet', 'Reportes'),
+        ('sistema.index', 'shield-check', 'Sistema'),
+      ]),
     ] %}
-    <ul class="nav flex-column">
-      {% for endpoint, icono, nombre in modulos %}
-      <li class="nav-item">
-        {% if endpoint %}
-        <a class="nav-link text-white {% if request.blueprint == endpoint.split('.')[0] %}active{% endif %}"
-           href="{{ url_for(endpoint) }}"><i class="bi {{ icono }}"></i> {{ nombre }}</a>
-        {% else %}
-        <span class="nav-link text-secondary"><i class="bi {{ icono }}"></i> {{ nombre }}
-          <small class="badge bg-secondary">pronto</small></span>
-        {% endif %}
-      </li>
+    <div class="menu-secciones">
+      {% for titulo, enlaces in secciones %}
+      <div class="menu-titulo">{{ titulo }}</div>
+      <ul class="menu-lista">
+        {% for endpoint, nombre_icono, nombre in enlaces %}
+        {% set activo = request.blueprint == endpoint.split('.')[0] %}
+        <li><a class="menu-enlace {{ 'activo' if activo }}" href="{{ url_for(endpoint) }}" {% if activo %}aria-current="page"{% endif %}>
+          {{ icono(nombre_icono) }}<span>{{ nombre }}</span></a></li>
+        {% endfor %}
+      </ul>
       {% endfor %}
-    </ul>
+    </div>
+
     {% if current_user.is_authenticated %}
-    <div class="border-top border-secondary pt-3 mt-3 small">
-      <div class="text-secondary">Sesión de</div>
-      <div class="fw-bold mb-2">{{ current_user.nombre }}</div>
-      <a href="{{ url_for('auth.cuenta') }}" class="btn btn-sm btn-outline-light w-100 mb-2"><i class="bi bi-person-gear"></i> Mi cuenta</a>
-      <form method="post" action="{{ url_for('auth.logout') }}">
-        <button class="btn btn-sm btn-outline-danger w-100"><i class="bi bi-box-arrow-right"></i> Salir</button>
-      </form>
+    <div class="sesion">
+      <a href="{{ url_for('auth.cuenta') }}" class="sesion-perfil" title="Editar mi perfil">
+        {% if current_user.foto %}
+        <img src="{{ url_for('auth.foto', id=current_user.id, v=current_user.foto[:8]) }}" alt="" class="avatar">
+        {% else %}
+        <span class="avatar avatar-iniciales">{{ current_user.iniciales }}</span>
+        {% endif %}
+        <span class="sesion-datos">
+          <span class="sesion-nombre">{{ current_user.nombre }}</span>
+          <span class="sesion-cargo">{{ current_user.cargo }}</span>
+        </span>
+      </a>
+      <div class="sesion-acciones">
+        <form method="post" action="{{ url_for('auth.logout') }}">
+          <button class="btn-icono btn-icono-salir" title="Cerrar sesión" aria-label="Cerrar sesión">{{ icono('log-out') }}</button>
+        </form>
+      </div>
     </div>
     {% endif %}
   </nav>
 
-  <main class="flex-grow-1 p-4">
+  <main class="contenido flex-grow-1">
     {% with mensajes = get_flashed_messages(with_categories=true) %}
       {% for categoria, msg in mensajes %}
       <div class="alert alert-{{ categoria }}">{{ msg }}</div>
