@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="mb-1">Clientes</h2>
+<p class="text-muted mb-4">Clientes al detal. Los mayoristas están en su propio módulo.</p>
+
+<div class="row g-3 mb-4">
+  {% for titulo, valor, nota in [
+      ('Clientes', resumen.total, 'registrados al detal'),
+      ('Nuevos este mes', resumen.nuevos_mes, 'primera compra este mes'),
+      ('Han vuelto', resumen.repiten, 'con 2 o más compras'),
+      ('Autorizan sus datos', resumen.autorizan, 'Ley 1581')] %}
+  <div class="col-6 col-lg-3">
+    <div class="card card-body shadow-sm h-100">
+      <small class="text-muted">{{ titulo }}</small>
+      <h4 class="mb-0">{{ valor }}</h4>
+      <small class="text-muted">{{ nota }}</small>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<form method="get" class="card card-body shadow-sm mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-4"><label class="form-label small mb-1">Buscar</label>
+      <input name="q" value="{{ filtros.q }}" class="form-control" placeholder="Nombre o celular"></div>
+    <div class="col-md-2"><label class="form-label small mb-1">Llegó por</label>
+      <select name="red" class="form-select"><option value="">Todas</option>
+        {% for r in redes %}<option {{ 'selected' if filtros.red == r }}>{{ r }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label small mb-1">Autoriza datos</label>
+      <select name="autoriza" class="form-select">
+        <option value="">Todos</option>
+        <option value="si" {{ 'selected' if filtros.autoriza == 'si' }}>Sí</option>
+        <option value="no" {{ 'selected' if filtros.autoriza == 'no' }}>No</option></select></div>
+    <div class="col-md-2"><label class="form-label small mb-1">Ordenar por</label>
+      <select name="orden" class="form-select">
+        {% for clave, nombre in ordenes.items() %}<option value="{{ clave }}" {{ 'selected' if filtros.orden == clave }}>{{ nombre }}</option>{% endfor %}</select></div>
+    <div class="col-md-2 d-flex gap-2">
+      <button class="btn btn-primary flex-grow-1">Filtrar</button>
+      <a href="{{ url_for('clientes.index') }}" class="btn btn-outline-secondary">Limpiar</a>
+    </div>
+  </div>
+</form>
+
+<div class="card card-body shadow-sm">
+  <div class="small text-muted mb-2">{{ filas|length }} cliente(s)</div>
+  <div class="table-responsive">
+  <table class="table table-hover align-middle mb-0">
+    <thead><tr><th>Cliente</th><th>Celular</th><th>Llegó por</th><th class="text-end">Compras</th>
+      <th class="text-end">Total comprado</th><th>Última compra</th><th class="text-center">Autoriza</th></tr></thead>
+    <tbody>
+      {% for c, e in filas %}
+      <tr onclick="location.href='{{ url_for('clientes.detalle', id=c.id) }}'" style="cursor:pointer">
+        <td class="fw-semibold">{{ c.nombre }}</td>
+        <td class="text-nowrap">{{ formato_telefono(c.telefono) or '—' }}</td>
+        <td>{{ e.llego_por or '—' }}</td>
+        <td class="text-end">{{ e.compras }}</td>
+        <td class="text-end">{{ e.total|pesos }}</td>
+        <td>{{ e.ultima.strftime('%d/%m/%Y') if e.ultima else '—' }}</td>
+        <td class="text-center">{{ '✓' if c.autoriza_datos else '—' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="text-center text-muted py-4">No hay clientes con esos filtros.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

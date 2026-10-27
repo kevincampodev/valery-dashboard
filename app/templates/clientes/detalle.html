@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<a href="{{ url_for('clientes.index') }}" class="small text-decoration-none">‹ Clientes</a>
+<h2 class="mb-1 mt-1">{{ cliente.nombre }}</h2>
+<p class="text-muted mb-4">{{ compras|length }} compra(s) por {{ total|pesos }}
+  {% if cliente.es_mayorista %}· <a href="{{ url_for('mayoristas.cliente', id=cliente.id) }}">también es cliente mayorista</a>{% endif %}</p>
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <form method="post" action="{{ url_for('clientes.editar', id=cliente.id) }}" class="card card-body shadow-sm">
+      <h5 class="mb-3">Datos</h5>
+      <label class="form-label small mb-1">Nombre</label>
+      <input name="nombre" class="form-control mb-2" value="{{ cliente.nombre }}" maxlength="120" required>
+      <label class="form-label small mb-1">Celular</label>
+      <input name="telefono" class="form-control mb-2" value="{{ cliente.telefono or '' }}" inputmode="numeric">
+      <label class="form-label small mb-1">Cédula</label>
+      <input name="documento" class="form-control mb-2" value="{{ cliente.documento or '' }}" maxlength="20">
+      <label class="form-label small mb-1">Ciudad</label>
+      <input name="ciudad" class="form-control mb-2" value="{{ cliente.ciudad or '' }}" maxlength="60">
+      <label class="form-label small mb-1">Notas</label>
+      <textarea name="notas" class="form-control mb-3" rows="2">{{ cliente.notas or '' }}</textarea>
+      <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" name="autoriza_datos" value="1" id="autoriza" {{ 'checked' if cliente.autoriza_datos }}>
+        <label class="form-check-label" for="autoriza">Autoriza el uso de sus datos (Ley 1581)</label>
+        {% if cliente.fecha_autorizacion %}<div class="form-text">Desde el {{ cliente.fecha_autorizacion.strftime('%d/%m/%Y') }}</div>{% endif %}
+      </div>
+      <button class="btn btn-primary">Guardar</button>
+    </form>
+  </div>
+  <div class="col-lg-8">
+    <div class="card card-body shadow-sm">
+      <h5 class="mb-3">Compras</h5>
+      <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead><tr><th>Fecha</th><th># Factura</th><th>Prendas</th><th>Llegó por</th><th>Vendedora</th><th class="text-end">Valor</th></tr></thead>
+        <tbody>
+          {% for v in compras %}
+          <tr>
+            <td class="text-nowrap"><a href="{{ url_for('ventas.dia', fecha=v.fecha.isoformat()) }}">{{ v.fecha.strftime('%d/%m/%Y') }}</a></td>
+            <td>{{ v.numero_factura or '—' }}</td>
+            <td class="small">
+              {% for l in v.lineas %}<div>{{ l.cantidad }} × {{ l.referencia }}{% if l.descripcion and l.descripcion != l.referencia %} · {{ l.descripcion }}{% endif %}{% if l.color %} · {{ l.color }}{% endif %}</div>
+              {% else %}{{ v.prendas or '—' }}{% endfor %}
+            </td>
+            <td>{{ v.medio_contacto or '—' }}</td>
+            <td>{{ v.vendedora.nombre if v.vendedora else '—' }}</td>
+            <td class="text-end {{ 'text-danger' if v.es_devolucion }}">{{ v.neto|pesos }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="text-center text-muted py-3">Sin compras registradas.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

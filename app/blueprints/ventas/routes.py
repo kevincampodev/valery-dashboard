@@ -138,7 +138,9 @@ def dia(fecha):
 
     registros = (Venta.query.options(joinedload(Venta.vendedora), joinedload(Venta.cliente), selectinload(Venta.lineas),
                                      selectinload(Venta.pagos))
-                 .filter_by(fecha=fecha_venta).order_by(Venta.id).all())
+                 .filter_by(fecha=fecha_venta)
+                 # En el orden del talonario; las registradas a mano (sin número) van al final
+                 .order_by(Venta.numero_factura.is_(None), Venta.numero_factura, Venta.id).all())
 
     tallas_usadas = [t for (t,) in db.session.query(LineaVenta.talla)
                      .filter(LineaVenta.talla.isnot(None)).distinct()]

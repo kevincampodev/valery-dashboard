@@ -18,6 +18,18 @@ from .clientes import normalizar_telefono
 
 VENDEDORA_MAYORISTA = "Al por mayor"          # nombre en el panel para las ventas "AL X MAYOR"
 
+# Nombres distintos en el Excel para la misma vendedora del panel
+ALIAS_VENDEDORAS = {"Alejandra Diaz": "Alejandra", "Alejandra Díaz": "Alejandra"}
+
+# Secuencia de referencias del catálogo (primeros 3 dígitos) -> descripción
+DESCRIPCION_POR_PREFIJO = {
+    "050": "Vestido Corto", "051": "Vestido Corto", "057": "Vestido Largo",
+    "070": "Enterizo", "071": "Enterizo",
+    "090": "Conjunto Pantalon y Blusa", "091": "Conjunto Pantalon y Blusa", "092": "Conjunto Pantalon y Blusa",
+    "093": "Conjunto Falda y Blusa",
+}
+SIN_DESCRIPCION = "Sin descripción"
+
 MEDIOS = {"efectivo": "Efectivo", "bancolombia": "Bancolombia", "nequi": "Nequi", "bold qr": "Bold QR",
           "bold datafono": "Bold Datáfono", "bold datáfono": "Bold Datáfono", "addi": "Addi",
           "transferencia": "Transferencia", "datafono": "Datáfono", "datáfono": "Datáfono"}
@@ -78,7 +90,66 @@ def normalizar_vendedora(texto):
         return None
     if limpio.upper().replace(".", "") in ("AL X MAYOR", "AL POR MAYOR"):
         return VENDEDORA_MAYORISTA
-    return limpio.title()
+    nombre = limpio.title()
+    return ALIAS_VENDEDORAS.get(nombre, nombre)
+
+
+def inferir_descripcion(referencia, precio, conocidas):
+    """
+    Descripción para una prenda que llegó sin ella. Reglas acordadas con la administración, en orden:
+    1. La misma referencia ya tiene una sola descripción en otra factura.
+    2. Secuencia del catálogo: 050/051 corto, 057 largo, 070/071 enterizo, 090-092 conjunto, 093 falda.
+    3. "Zapatos", o 4 dígitos que empiezan por 1 o 2 y valen hasta $150.000 -> Calzado.
+    4. 1 a 3 dígitos, o 5 dígitos que empiezan por 18, 25 o 26, de $200.000 o más -> Vestido de Gala.
+    5. Solo dice "Vestido" -> Vestido (no se sabe si es corto, largo o de gala).
+    """
+    ref = referencia.strip()
+    clave = ref.lower()
+    opciones = conocidas.get(clave, set())
+    if len(opciones) == 1:
+        return next(iter(opciones))
+    if re.fullmatch(r"\d{5}", ref) and ref[:3] in DESCRIPCION_POR_PREFIJO:
+        return DESCRIPCION_POR_PREFIJO[ref[:3]]
+    if clave == "zapatos" or (re.fullmatch(r"[12]\d{3}", ref) and precio <= 150_000):
+        return "Calzado"
+    if (re.fullmatch(r"\d{1,3}", ref) or re.fullmatch(r"(18|25|26)\d{3}", ref)) and precio >= 200_000:
+        return "Vestido de Gala"
+    if clave == "vestido":
+        return "Vestido"
+    if re.search(r"[a-záéíóúñ]", clave) and clave != "zapatos":
+        return ref                      # la referencia ya es una descripción ("Vestido de Gala", "Chanel Satin")
+    return SIN_DESCRIPCION
+
+
+def completar_descripciones(ventas):
+    """Llena las descripciones vacías. Devuelve (cuántas se completaron, lista de las que no se pudo)."""
+    conocidas = {}
+    for venta in ventas:
+        for linea in venta["lineas"]:
+            if linea["descripcion"]:
+                conocidas.setdefault(linea["referencia"].lower(), set()).add(linea["descripcion"])
+    completadas, pendientes = 0, []
+    for venta in ventas:
+        for linea in venta["lineas"]:
+            if linea["descripcion"]:
+                continue
+            linea["descripcion"] = inferir_descripcion(linea["referencia"], linea["precio_unitario"], conocidas)
+            if linea["descripcion"] == SIN_DESCRIPCION:
+                pendientes.append((venta["numero"], linea["referencia"], linea["precio_unitario"]))
+            else:
+                completadas += 1
+    return completadas, pendientes
+
+
+SIN_NOMBRE = {"nn", "n.n", "n/n", "na", "n/a", "sin nombre", "cliente", "x"}
+
+
+def normalizar_cliente(texto):
+    """'marly vannesa' -> 'Marly Vannesa'. 'NN' o 'N/A' -> None (sin nombre)."""
+    nombre = _texto(texto)
+    if nombre.lower().replace(" ", "") in {n.replace(" ", "") for n in SIN_NOMBRE}:
+        return None
+    return nombre.title()[:120] or None
 
 
 def _es_abono(fila):
@@ -192,7 +263,7 @@ def leer_facturas(ruta):
             "fecha": fecha,
             "canal": "Mayorista" if vendedora == VENDEDORA_MAYORISTA else "Minorista",
             "vendedora": vendedora,
-            "cliente": _texto(cab[NOMBRE]).title()[:120] or None,
+            "cliente": normalizar_cliente(cab[NOMBRE]),
             "telefono": telefono,
             "medio_contacto": normalizar_contacto(cab[CONTACTO]),
             "valor": total,
@@ -200,6 +271,11 @@ def leer_facturas(ruta):
             "pagos": pagos,
             "lineas": lineas,
         })
+    completadas, pendientes = completar_descripciones(ventas)
+    if completadas:
+        avisos.append(f"{completadas} prenda(s) sin descripción se completaron con las reglas de referencia.")
+    for numero, referencia, precio in pendientes:
+        avisos.append(f"Factura #{numero}: la referencia '{referencia}' ({precio}) quedó '{SIN_DESCRIPCION}'.")
     return ventas, abonos, avisos
 
 
