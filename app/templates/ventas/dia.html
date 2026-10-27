@@ -20,10 +20,11 @@
   </div>
   <div class="table-responsive">
     <table class="table table-sm table-hover align-middle mb-0">
-      <thead><tr><th>Cliente</th><th>Vendedora</th><th>Medio</th><th>Contacto</th><th class="text-end">Prendas</th><th class="text-end">Valor</th><th></th></tr></thead>
+      <thead><tr><th># Factura</th><th>Cliente</th><th>Vendedora</th><th>Medio</th><th>Contacto</th><th class="text-end">Prendas</th><th class="text-end">Valor</th><th></th></tr></thead>
       <tbody>
         {% for v in registros %}
         <tr class="fila-venta {{ 'table-danger' if v.es_devolucion }}" style="cursor:pointer" data-venta='{{ detalles[v.id]|tojson }}'>
+          <td class="text-muted">{{ v.numero_factura or '—' }}</td>
           <td>{{ v.cliente.nombre if v.cliente else '—' }}{% if v.es_devolucion %} <span class="badge bg-danger">Devolución</span>{% endif %}</td>
           <td>{{ v.vendedora.nombre if v.vendedora else '—' }}</td>
           <td>{{ v.medio_pago }}</td>
@@ -38,7 +39,7 @@
         </tr>
         {% endfor %}
       </tbody>
-      <tfoot><tr class="table-light"><th colspan="5" class="text-end">Neto del día</th><th class="text-end">{{ total|pesos }}</th><th></th></tr></tfoot>
+      <tfoot><tr class="table-light"><th colspan="6" class="text-end">Neto del día</th><th class="text-end">{{ total|pesos }}</th><th></th></tr></tfoot>
     </table>
   </div>
 </div>

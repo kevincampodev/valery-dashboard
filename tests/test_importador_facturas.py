@@ -60,3 +60,28 @@ def test_normalizaciones():
     assert leer_fecha("basura") is None
     assert normalizar_vendedora("andrea") == "Andrea"
     assert normalizar_vendedora(None) is None
+
+
+def test_completa_descripciones_por_secuencia_y_precio():
+    from app.services.importador_facturas import inferir_descripcion, SIN_DESCRIPCION
+    conocidas = {"818": {"Pantalon"}, "810": {"Vestido Corto", "Vestido Largo"}}
+    assert inferir_descripcion("05741", 90000, conocidas) == "Vestido Largo"
+    assert inferir_descripcion("05123", 90000, conocidas) == "Vestido Corto"
+    assert inferir_descripcion("09193", 85000, conocidas) == "Conjunto Pantalon y Blusa"
+    assert inferir_descripcion("818", 280000, conocidas) == "Pantalon"              # ya la conocemos
+    assert inferir_descripcion("810", 280000, conocidas) == "Vestido de Gala"       # dos opciones: manda el precio
+    assert inferir_descripcion("2616", 130000, conocidas) == "Calzado"
+    assert inferir_descripcion("26819", 300000, conocidas) == "Vestido de Gala"
+    assert inferir_descripcion("Zapatos", 110000, conocidas) == "Calzado"
+    assert inferir_descripcion("Vestido", 250000, conocidas) == "Vestido"
+    assert inferir_descripcion("98", 140000, conocidas) == SIN_DESCRIPCION
+
+
+def test_alias_de_vendedora():
+    assert normalizar_vendedora("alejandra diaz") == "Alejandra"
+
+
+def test_nombres_vacios_de_cliente():
+    from app.services.importador_facturas import normalizar_cliente
+    assert normalizar_cliente("NN") is None and normalizar_cliente(" n/a ") is None
+    assert normalizar_cliente("marly vannesa") == "Marly Vannesa"

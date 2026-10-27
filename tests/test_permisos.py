@@ -53,7 +53,7 @@ def test_marketing_solo_ve_redes(app):
     assert c.get("/").headers["Location"].endswith("/redes/")      # su inicio es el resumen de redes
     for url in ("/redes/", "/redes/facturas", "/redes/facturas/excel", "/publicidad/", "/cuenta"):
         assert c.get(url).status_code == 200, url
-    for url in ("/deudas/", "/ventas/", "/mayoristas/", "/comisiones/", "/sistema/", "/sistema/bitacora"):
+    for url in ("/deudas/", "/ventas/", "/mayoristas/", "/clientes/", "/comisiones/", "/sistema/", "/sistema/bitacora"):
         assert c.get(url).status_code == 403, url
 
 

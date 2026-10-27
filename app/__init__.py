@@ -63,9 +63,9 @@ def create_app(config_class=Config):
 
     # Módulos
     from .blueprints import (auth, dashboard, deudas, abonos, ventas, mayoristas, metas, comisiones,
-                             proyecciones, pagos, marketing, documentos, reportes, sistema, redes)
+                             proyecciones, pagos, marketing, documentos, reportes, sistema, redes, clientes)
     for modulo in (auth, dashboard, deudas, abonos, ventas, mayoristas, metas, comisiones,
-                   proyecciones, pagos, marketing, documentos, reportes, sistema, redes):
+                   proyecciones, pagos, marketing, documentos, reportes, sistema, redes, clientes):
         app.register_blueprint(modulo.bp)
 
     # Candado global: nada se ve sin iniciar sesión
