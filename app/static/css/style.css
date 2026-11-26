@@ -175,9 +175,94 @@ h2 { font-size: 1.85rem; }
 .detalle-diario summary::before { content: "▸ "; color: var(--tinta-tenue); }
 .detalle-diario[open] summary::before { content: "▾ "; }
 
+/* ===== Inicio ===== */
+.resumen-frase { font-size: 1.02rem; color: var(--tinta-suave); max-width: 62rem; }
+.resumen-frase strong { color: var(--tinta); }
+.texto-sube { color: #0f7a3d; font-weight: 600; }
+.texto-baja, .text-peligro { color: #b42318 !important; font-weight: 600; }
+.text-capitalize-first::first-letter { text-transform: uppercase; }
+
+.alertas { display: flex; flex-wrap: wrap; gap: .6rem; }
+.alerta { display: inline-flex; align-items: center; gap: .55rem; padding: .55rem .6rem .55rem .85rem; border-radius: 12px;
+  font-size: .88rem; text-decoration: none; border: 1px solid transparent; transition: transform .15s, box-shadow .15s; }
+a.alerta:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(15, 30, 60, .1); }
+.alerta .bi { font-size: 1.05rem; }
+.alerta-boton { font-weight: 600; font-size: .8rem; padding: .2rem .55rem; border-radius: 8px; background: rgba(255, 255, 255, .7); white-space: nowrap; }
+.alerta-peligro { background: #fdecea; color: #8c1d13; border-color: #f6cfc9; }
+.alerta-aviso { background: #fff6e5; color: #7a4d00; border-color: #f5e0b5; }
+.alerta-info { background: var(--marca-suave); color: var(--marca); border-color: #d3e2f1; }
+.alerta-ok { background: #e9f6ee; color: #0f6b37; border-color: #cbe9d6; padding-right: .85rem; }
+
+a.tarjeta-kpi:hover { color: inherit; }
+.kpi-icono { color: var(--tinta-tenue); font-size: 1.05rem; }
+.kpi-peligro { box-shadow: inset 3px 0 0 #d92d20, 0 .125rem .25rem rgba(0, 0, 0, .075) !important; }
+
+.meta-anillo-caja { position: relative; width: 168px; margin: .25rem auto .75rem; }
+.meta-anillo { width: 100%; transform: rotate(-90deg); }
+.meta-anillo circle { fill: none; stroke-width: 11; }
+.anillo-pista { stroke: var(--marca-suave); }
+.anillo-relleno { stroke: var(--serie-detal); stroke-linecap: round; stroke-dasharray: 326.73; stroke-dashoffset: 326.73;
+  transition: stroke-dashoffset 1.4s cubic-bezier(.2,.7,.3,1); }
+.anillo-relleno.lleno { stroke-dashoffset: calc(326.73 * (1 - var(--p) / 100)); }
+.anillo-cumplido { stroke: #12a150; }
+.anillo-centro { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.anillo-centro strong { font-size: 2rem; font-weight: 700; letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+.anillo-centro small { font-size: .72rem; color: var(--tinta-tenue); margin-top: .3rem; }
+.meta-datos { margin: 0; font-size: .85rem; }
+.meta-datos div { display: flex; justify-content: space-between; gap: .5rem; padding: .35rem 0; border-top: 1px solid var(--borde); }
+.meta-datos dt { font-weight: 400; color: var(--tinta-suave); }
+.meta-datos dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.agenda { display: flex; flex-direction: column; gap: .45rem; }
+.agenda-fila { display: grid; grid-template-columns: 48px 1fr auto auto; align-items: center; gap: .85rem; padding: .5rem .75rem .5rem .5rem;
+  border: 1px solid var(--borde); border-radius: 12px; text-decoration: none; color: var(--tinta); transition: border-color .15s, transform .15s; }
+.agenda-fila:hover { border-color: var(--serie-detal); transform: translateX(2px); color: var(--tinta); }
+.agenda-fecha { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 48px; border-radius: 10px;
+  background: var(--hover); line-height: 1.05; }
+.agenda-fecha strong { font-size: 1.15rem; }
+.agenda-fecha span { font-size: .66rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--tinta-suave); }
+.agenda-proveedor { font-weight: 600; font-size: .92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agenda-info { min-width: 0; }
+.agenda-cuando { font-size: .75rem; font-weight: 600; padding: .15rem .5rem; border-radius: 999px; white-space: nowrap;
+  background: var(--hover); color: var(--tinta-suave); }
+.agenda-valor { font-variant-numeric: tabular-nums; text-align: right; min-width: 7.5rem; white-space: nowrap; }
+.agenda-vencida .agenda-fecha { background: #fdecea; color: #b42318; }
+.agenda-vencida .agenda-fecha span, .agenda-vencida .agenda-cuando { color: #b42318; }
+.agenda-vencida .agenda-cuando { background: #fdecea; }
+.agenda-pronto .agenda-fecha { background: #fff6e5; color: #8a5a00; }
+.agenda-pronto .agenda-fecha span, .agenda-pronto .agenda-cuando { color: #8a5a00; }
+.agenda-pronto .agenda-cuando { background: #fff6e5; }
+@media (max-width: 575.98px) {
+  .agenda-fila { grid-template-columns: 44px 1fr; row-gap: .3rem; }
+  .agenda-fecha { grid-row: span 2; }
+  .agenda-cuando { grid-column: 2; grid-row: 2; justify-self: start; }
+  .agenda-valor { grid-column: 2; grid-row: 2; justify-self: end; min-width: 0; }
+}
+
+.barra-enlace { display: block; text-decoration: none; color: var(--tinta); border-radius: 8px; transition: background .15s; }
+.barra-enlace:hover { color: var(--tinta); }
+.barra-enlace:hover .barra-nombre { color: var(--marca); text-decoration: underline; }
+.barra-marca { background: linear-gradient(90deg, #4f8fcf, var(--marca)); }
+
+.cliente-fila { display: flex; align-items: center; gap: .75rem; padding: .6rem 0; border-bottom: 1px solid var(--borde); }
+.cliente-fila:last-of-type { border-bottom: 0; }
+.cliente-avatar { width: 36px; height: 36px; font-size: .85rem; box-shadow: none; background: var(--marca-suave); color: var(--marca); }
+.cliente-info { flex: 1; min-width: 0; }
+.cliente-info:hover .fw-semibold { color: var(--marca); }
+.btn-whatsapp { background: #1f9d55; color: #fff; border: 0; border-radius: 9px; font-weight: 600; white-space: nowrap; }
+.btn-whatsapp:hover { background: #17834a; color: #fff; }
+
+.retorno { display: flex; flex-direction: column; align-items: center; padding: .7rem; border-radius: 12px; text-align: center; }
+.retorno span { font-size: .8rem; }
+.retorno strong { font-size: 1.6rem; letter-spacing: -.02em; line-height: 1.15; }
+.retorno small { font-size: .74rem; }
+.retorno-bien { background: #e9f6ee; color: #0f6b37; }
+.retorno-mal { background: #fdecea; color: #8c1d13; }
+.abono-fila { display: flex; justify-content: space-between; align-items: center; gap: .5rem; padding: .45rem 0; border-top: 1px solid var(--borde); font-size: .9rem; }
+
 @media (prefers-reduced-motion: reduce) {
   .aparecer { animation: none; }
-  .barra-relleno, .meta-relleno, .tarjeta-kpi, .cal-dia, .prenda-top { transition: none; }
+  .barra-relleno, .meta-relleno, .tarjeta-kpi, .cal-dia, .prenda-top, .anillo-relleno, .agenda-fila, .alerta { transition: none; }
 }
 
 /* Foto de perfil en Mi cuenta */

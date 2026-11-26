@@ -1,169 +1,268 @@
 {% extends "base.html" %}
-{% from "_macros.html" import badge_estado %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-  <h2>Resumen general</h2>
-  <span class="text-muted">{{ hoy.strftime('%d/%m/%Y') }}</span>
-</div>
+{% macro cambio(valor, texto='') %}
+  {% if valor is none %}<span class="cambio cambio-neutro">sin comparación</span>
+  {% elif valor >= 0 %}<span class="cambio cambio-sube" title="{{ texto }}">▲ {{ valor }}%</span>
+  {% else %}<span class="cambio cambio-baja" title="{{ texto }}">▼ {{ valor|abs }}%</span>{% endif %}
+{% endmacro %}
+{% set dias_largos = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'] %}
+{% set meses_largos = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'] %}
 
-{% set tarjetas = [
-  ('Deuda total', resumen.deuda_total, 'con proveedores', 'primary', 'bi-receipt', url_for('deudas.index')),
-  ('Vencido', resumen.vencido, resumen.n_vencidas ~ ' facturas', 'danger', 'bi-exclamation-triangle', url_for('deudas.index', estado='vencida')),
-  ('Vence en 7 días', resumen.por_vencer, resumen.n_por_vencer ~ ' facturas', 'warning', 'bi-calendar-event', url_for('deudas.index', estado='por vencer')),
-  ('Abonado este mes', abonado_mes, n_abonos_mes ~ ' abonos', 'success', 'bi-cash-coin', url_for('abonos.index')),
-] %}
-<div class="row g-3 mb-4">
-  {% for titulo, valor, detalle, color, icono, url in tarjetas %}
-  <div class="col-md-6 col-xl-3">
-    <a href="{{ url }}" class="text-decoration-none">
-      <div class="card border-start border-4 border-{{ color }} h-100 shadow-sm">
-        <div class="card-body">
-          <div class="d-flex justify-content-between">
-            <small class="text-muted">{{ titulo }}</small>
-            <i class="bi {{ icono }} text-{{ color }} fs-5"></i>
-          </div>
-          <h4 class="text-{{ color }} mb-0">{{ valor|pesos }}</h4>
-          <small class="text-muted">{{ detalle }}</small>
-        </div>
-      </div>
-    </a>
-  </div>
+{# ---------- Saludo ---------- #}
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-1 aparecer" style="--i: 0">
+  <h2 class="mb-0">{{ saludo }}{% if nombre %}, {{ nombre }}{% endif %}</h2>
+  <span class="text-muted small text-capitalize-first">{{ dias_largos[hoy.weekday()] }} {{ hoy.day }} de {{ meses_largos[hoy.month - 1] }}</span>
+</div>
+<p class="resumen-frase mb-3 aparecer" style="--i: 1">
+  {% if corte %}
+  {{ mes }} lleva <strong>{{ actual.neto|pesos }}</strong>
+  {%- if cambio_mes is not none %}, <span class="{{ 'texto-sube' if cambio_mes >= 0 else 'texto-baja' }}">{{ cambio_mes|abs }}% {{ 'más' if cambio_mes >= 0 else 'menos' }}</span> que {{ mes_anterior|lower }} a esta fecha{% endif %}.
+  {% if avance %} Vas en el <strong>{{ avance.porcentaje }}%</strong> de la meta.{% elif cierre %} A este ritmo cierra en ~{{ cierre|pesos }}.{% endif %}
+  {% else %}{{ mes }} todavía no tiene ventas cargadas.{% endif %}
+</p>
+
+{# ---------- Alertas: lo que hay que hacer hoy ---------- #}
+<div class="alertas mb-4">
+  {% for tipo, icono, texto, valor, boton, enlace in alertas %}
+  <a href="{{ enlace }}" class="alerta alerta-{{ tipo }} aparecer" style="--i: {{ loop.index + 1 }}">
+    <i class="bi {{ icono }}"></i>
+    <span class="alerta-texto">{{ texto }}{% if valor %} · <strong>{{ valor|pesos }}</strong>{% endif %}</span>
+    <span class="alerta-boton">{{ boton }} →</span>
+  </a>
+  {% else %}
+  <div class="alerta alerta-ok aparecer" style="--i: 2"><i class="bi bi-check-circle"></i><span class="alerta-texto">Todo al día. No hay nada pendiente.</span></div>
   {% endfor %}
 </div>
 
-<a href="{{ url_for('metas.index') }}" class="text-decoration-none text-reset">
-  <div class="card card-body shadow-sm mb-4">
-    {% if avance_mes %}
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <span><i class="bi bi-bullseye"></i> <strong>Ventas del mes:</strong> {{ avance_mes.vendido|pesos }} de {{ avance_mes.meta|pesos }} ({{ avance_mes.porcentaje }}%)</span>
-      <span class="small text-muted">
-        {% if avance_mes.faltante and avance_mes.dias_restantes %}Hay que vender {{ avance_mes.ritmo_necesario|pesos }}/día · {% endif %}
-        Proyección: {{ avance_mes.proyeccion|pesos }}
-      </span>
-    </div>
-    <div class="progress" style="height:10px">
-      <div class="progress-bar {{ 'bg-success' if avance_mes.porcentaje >= 100 else 'bg-primary' }}" style="width: {{ [avance_mes.porcentaje, 100]|min }}%"></div>
-    </div>
-    {% else %}
-    <span><i class="bi bi-bullseye"></i> <strong>Ventas del mes:</strong> {{ vendido_mes|pesos }} · <span class="text-muted">Sin meta definida — clic para configurarla</span></span>
-    {% endif %}
+{# ---------- Tarjetas ---------- #}
+<div class="row g-3 mb-3">
+  <div class="col-12 col-sm-6 col-xl-3">
+    <a href="{{ url_for('ventas.index') }}" class="card card-body shadow-sm h-100 tarjeta-kpi aparecer text-reset text-decoration-none" style="--i: 3">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <span class="kpi-titulo">Ventas de {{ mes|lower }}</span>
+        {{ cambio(cambio_mes, ('vs. 1–' ~ corte_ant.day ~ ' de ' ~ mes_anterior|lower) if corte_ant else '') }}
+      </div>
+      <div class="kpi-valor" data-contar="{{ actual.neto }}" data-formato="pesos">{{ actual.neto|pesos }}</div>
+      <div class="d-flex justify-content-between align-items-end gap-2">
+        <small class="text-muted">
+          {% if actual.neto %}Detal {{ (actual.minorista * 100 / actual.neto)|round|int }}% · Mayor {{ (actual.mayorista * 100 / actual.neto)|round|int }}%{% else %}Sin ventas aún{% endif %}
+        </small>
+        <canvas class="sparkline" data-serie="acumulado" width="96" height="28" aria-hidden="true"></canvas>
+      </div>
+    </a>
   </div>
-</a>
+  <div class="col-12 col-sm-6 col-xl-3">
+    <a href="{{ url_for('ventas.dia', fecha=(corte or hoy).isoformat()) }}" class="card card-body shadow-sm h-100 tarjeta-kpi aparecer text-reset text-decoration-none" style="--i: 4">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <span class="kpi-titulo">{% if corte == hoy %}Ventas de hoy{% elif corte %}Último día · {{ corte_texto }}{% else %}Ventas de hoy{% endif %}</span>
+        {{ cambio(cambio_dia, 'vs. el promedio diario del mes') }}
+      </div>
+      <div class="kpi-valor" data-contar="{{ ultimo.neto if ultimo else 0 }}" data-formato="pesos">{{ (ultimo.neto if ultimo else 0)|pesos }}</div>
+      <div class="d-flex justify-content-between align-items-end gap-2">
+        <small class="text-muted">{% if ultimo %}{{ ultimo.numero }} venta{{ '' if ultimo.numero == 1 else 's' }} · prom. {{ promedio|pesos }}{% else %}Sin ventas cargadas{% endif %}</small>
+        <canvas class="sparkline" data-serie="diario" width="96" height="28" aria-hidden="true"></canvas>
+      </div>
+    </a>
+  </div>
+  <div class="col-12 col-sm-6 col-xl-3">
+    <a href="{{ url_for('deudas.index') }}" class="card card-body shadow-sm h-100 tarjeta-kpi aparecer text-reset text-decoration-none" style="--i: 5">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <span class="kpi-titulo">Deuda con proveedores</span>
+        <i class="bi bi-receipt kpi-icono"></i>
+      </div>
+      <div class="kpi-valor" data-contar="{{ resumen.deuda_total }}" data-formato="pesos">{{ resumen.deuda_total|pesos }}</div>
+      <small class="text-muted">Abonado en {{ mes|lower }}: <strong class="text-body">{{ abonado_mes|pesos }}</strong> · {{ n_abonos_mes }} abono{{ '' if n_abonos_mes == 1 else 's' }}</small>
+    </a>
+  </div>
+  <div class="col-12 col-sm-6 col-xl-3">
+    <a href="{{ url_for('deudas.index', estado='vencida') }}" class="card card-body shadow-sm h-100 tarjeta-kpi aparecer text-reset text-decoration-none {{ 'kpi-peligro' if resumen.vencido }}" style="--i: 6">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <span class="kpi-titulo">Vencido</span>
+        {% if resumen.vencido %}<span class="cambio cambio-baja">{{ resumen.n_vencidas }} factura{{ '' if resumen.n_vencidas == 1 else 's' }}</span>
+        {% else %}<span class="cambio cambio-sube">Al día ✓</span>{% endif %}
+      </div>
+      <div class="kpi-valor {{ 'text-peligro' if resumen.vencido }}" data-contar="{{ resumen.vencido }}" data-formato="pesos">{{ resumen.vencido|pesos }}</div>
+      <small class="text-muted">
+        {% if resumen.deuda_total %}{{ (resumen.vencido * 100 / resumen.deuda_total)|round|int }}% de la deuda total{% else %}Sin deudas pendientes{% endif %}
+      </small>
+    </a>
+  </div>
+</div>
 
 <div class="row g-3 mb-4">
-  <div class="col-lg-7">
-    <div class="card card-body shadow-sm h-100">
-      <h6>Vencimientos por semana</h6>
-      <div style="height:280px"><canvas id="grafSemanas"></canvas></div>
+  {# ---------- Meta del mes ---------- #}
+  <div class="col-lg-4">
+    <div class="card card-body shadow-sm h-100 aparecer" style="--i: 7">
+      <div class="d-flex justify-content-between align-items-baseline mb-2">
+        <h5 class="mb-0">Meta de {{ mes|lower }}</h5>
+        {% if avance %}
+        {% set colores_estado = {'cumplida': 'success', 'en camino': 'success', 'en riesgo': 'warning', 'atrasada': 'danger', 'no cumplida': 'danger', 'por iniciar': 'secondary'} %}
+        <span class="badge text-bg-{{ colores_estado.get(avance.estado, 'secondary') }}">{{ avance.estado|capitalize }}</span>
+        {% endif %}
+      </div>
+      <div class="meta-anillo-caja">
+        <svg class="meta-anillo" viewBox="0 0 120 120" role="img" aria-label="{{ ('Avance de la meta: ' ~ avance.porcentaje ~ '%') if avance else 'Sin meta definida' }}">
+          <circle class="anillo-pista" cx="60" cy="60" r="52"></circle>
+          {% if avance %}<circle class="anillo-relleno{{ ' anillo-cumplido' if avance.porcentaje >= 100 }}" cx="60" cy="60" r="52" style="--p: {{ [avance.porcentaje, 100]|min }}"></circle>{% endif %}
+        </svg>
+        <div class="anillo-centro">
+          {% if avance %}
+          <strong data-contar="{{ avance.porcentaje }}" data-formato="porcentaje">{{ avance.porcentaje }}%</strong>
+          <small>de {{ avance.meta|pesos }}</small>
+          {% else %}
+          <strong class="text-muted">—</strong><small>Sin meta</small>
+          {% endif %}
+        </div>
+      </div>
+      {% if avance %}
+      <dl class="meta-datos">
+        {% if avance.faltante %}
+        <div><dt>Faltan</dt><dd>{{ avance.faltante|pesos }}</dd></div>
+        <div><dt>Toca vender por día</dt><dd>{{ avance.ritmo_necesario|pesos }}</dd></div>
+        {% else %}
+        <div><dt>Por encima de la meta</dt><dd class="texto-sube">{{ (avance.vendido - avance.meta)|pesos }}</dd></div>
+        {% endif %}
+        {% if cierre %}<div><dt>A este ritmo cierras en</dt><dd>~{{ cierre|pesos }}</dd></div>{% endif %}
+      </dl>
+      {% else %}
+      <p class="small text-muted text-center mb-2">{% if cierre %}A este ritmo {{ mes|lower }} cierra en <strong class="text-body">~{{ cierre|pesos }}</strong>.{% endif %} Define la meta para ver el avance y cuánto toca vender por día.</p>
+      <a href="{{ url_for('metas.index') }}" class="btn btn-sm btn-primary align-self-center">Definir meta</a>
+      {% endif %}
     </div>
   </div>
-  <div class="col-lg-5">
-    <div class="card card-body shadow-sm h-100">
-      <h6>Deuda por proveedor</h6>
-      <div style="height:280px"><canvas id="grafProveedores"></canvas></div>
+
+  {# ---------- Últimos 7 días ---------- #}
+  <div class="col-lg-8">
+    <div class="card card-body shadow-sm h-100 aparecer" style="--i: 8">
+      <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-2 mb-1">
+        <h5 class="mb-0">Últimos 7 días cargados</h5>
+        <div class="leyenda small">
+          <span><i class="punto punto-detal"></i>Al detal</span>
+          <span><i class="punto punto-mayor"></i>Al por mayor</span>
+        </div>
+      </div>
+      <p class="small text-muted mb-2">Clic en un día para abrir sus ventas.</p>
+      {% if grafica.siete %}
+      <div class="flex-grow-1" style="min-height:250px; position:relative"><canvas id="grafSiete" role="img" aria-label="Ventas de los últimos 7 días cargados, al detal y al por mayor"></canvas></div>
+      {% else %}<p class="text-muted small mb-0">Todavía no hay ventas cargadas este mes.</p>{% endif %}
+      <a href="{{ url_for('ventas.index') }}" class="small mt-2">Ver el tablero de ventas →</a>
     </div>
   </div>
 </div>
 
 <div class="row g-3 mb-4">
-  <div class="col-lg-4">
-    <div class="card card-body shadow-sm h-100">
-      <h6><i class="bi bi-diagram-2"></i> Ventas del mes por canal</h6>
-      {% set total_canales = canales_mes.values()|sum %}
-      {% for canal, valor in canales_mes.items() %}
-      <div class="d-flex justify-content-between mt-2">
-        <span>{{ canal }}</span><strong>{{ valor|pesos }}</strong>
+  {# ---------- Agenda de pagos ---------- #}
+  <div class="col-lg-7">
+    <div class="card card-body shadow-sm h-100 aparecer" style="--i: 9">
+      <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-2 mb-1">
+        <h5 class="mb-0">Próximos pagos</h5>
+        {% if n_agenda %}<span class="small text-muted">Vencido + próximos 30 días: <strong class="text-body">{{ total_agenda|pesos }}</strong></span>{% endif %}
       </div>
-      <div class="progress" style="height:6px">
-        <div class="progress-bar {{ 'bg-primary' if canal == 'Minorista' else 'bg-info' }}"
-             style="width: {{ (valor * 100 / total_canales)|round|int if total_canales else 0 }}%"></div>
+      <p class="small text-muted mb-3">Lo vencido va primero. Clic para abrir la factura.</p>
+      <div class="agenda">
+        {% for p in agenda %}{% set f = p.factura %}
+        <a href="{{ url_for('deudas.detalle', id=f.id) }}" class="agenda-fila agenda-{{ p.urgencia }} aparecer" style="--i: {{ 9 + loop.index }}">
+          <div class="agenda-fecha"><strong>{{ p.dia }}</strong><span>{{ p.mes }}</span></div>
+          <div class="agenda-info">
+            <div class="agenda-proveedor">{{ f.proveedor.nombre }}</div>
+            <div class="small text-muted">Factura {{ f.numero }}</div>
+          </div>
+          <span class="agenda-cuando">
+            {% if p.dias < 0 %}Vencida hace {{ -p.dias }} día{{ '' if p.dias == -1 else 's' }}
+            {% elif p.dias == 0 %}Vence hoy{% elif p.dias == 1 %}Vence mañana
+            {% else %}En {{ p.dias }} días{% endif %}
+          </span>
+          <strong class="agenda-valor">{{ f.saldo|pesos }}</strong>
+        </a>
+        {% else %}
+        <div class="alerta alerta-ok"><i class="bi bi-check-circle"></i><span class="alerta-texto">No hay pagos vencidos ni por vencer en los próximos 30 días.</span></div>
+        {% endfor %}
       </div>
-      {% endfor %}
-      <a href="{{ url_for('ventas.index') }}" class="small mt-3">Ver ventas del mes →</a>
+      {% if n_agenda > agenda|length %}<a href="{{ url_for('deudas.index') }}" class="small mt-2">Ver los {{ n_agenda }} pagos →</a>{% endif %}
     </div>
   </div>
 
-  <div class="col-lg-4">
-    <div class="card card-body shadow-sm h-100">
-      <h6><i class="bi bi-megaphone"></i> Publicidad este mes</h6>
-      <div class="d-flex justify-content-between mt-2"><span>Vendido por redes <small class="text-muted">(TikTok, Facebook, Instagram)</small></span><strong>{{ publicidad.ventas|pesos }}</strong></div>
-      <div class="d-flex justify-content-between"><span>Pauta a la fecha</span><strong>{{ publicidad.inversion|pesos }}</strong></div>
-      {% if publicidad.retorno is not none %}
-      <div class="mt-2 p-2 rounded text-center {{ 'bg-success-subtle text-success' if publicidad.retorno >= publicidad.equilibrio else 'bg-danger-subtle text-danger' }}">
-        Por cada $1 invertido: <strong class="fs-5">${{ '%.2f'|format(publicidad.retorno) }}</strong>
-        <br><small>{{ 'Se está pagando sola' if publicidad.retorno >= publicidad.equilibrio else 'Por ahora no alcanza a pagarse' }}
-        (mínimo ${{ publicidad.equilibrio }})</small>
-      </div>
-      {% else %}
-      <p class="small text-muted mt-2 mb-0">No hay pauta registrada para este mes.</p>
-      {% endif %}
-      <a href="{{ url_for('marketing.index') }}" class="small mt-3">Ver rentabilidad →</a>
-    </div>
-  </div>
-
-  <div class="col-lg-4">
-    <div class="card card-body shadow-sm h-100">
-      <h6><i class="bi bi-person-exclamation"></i> Mayoristas que no han vuelto <small class="text-muted">(+{{ dias_sin_compra }} días)</small></h6>
-      {% for f in clientes_frios %}
-      <a href="{{ url_for('mayoristas.cliente', id=f.cliente.id) }}" class="d-flex justify-content-between text-decoration-none text-reset border-bottom py-1">
-        <span>{{ f.cliente.nombre }}<br><small class="text-muted">Última compra: {{ f.ultima.strftime('%d/%m/%Y') }}</small></span>
-        <span class="text-end"><span class="badge bg-warning text-dark">{{ f.dias }} días</span><br><small class="text-muted">{{ f.total|pesos }}</small></span>
+  {# ---------- Deuda por proveedor ---------- #}
+  <div class="col-lg-5">
+    <div class="card card-body shadow-sm h-100 aparecer" style="--i: 10">
+      <h5 class="mb-1">Deuda por proveedor</h5>
+      <p class="small text-muted mb-3">Clic para ver sus facturas.</p>
+      {% set tope = proveedores[0].valor if proveedores else 1 %}
+      {% for g in proveedores[:7] %}
+      <a href="{{ url_for('deudas.index', proveedor=g.id) }}" class="barra-fila barra-enlace aparecer" style="--i: {{ 10 + loop.index }}">
+        <div class="barra-texto">
+          <span class="barra-nombre">{{ g.nombre }}</span>
+          <span class="barra-valor">{{ g.valor|pesos }}<small>{{ g.porcentaje }}% · {{ g.numero }} factura{{ '' if g.numero == 1 else 's' }}</small></span>
+        </div>
+        <div class="barra-pista"><div class="barra-relleno barra-marca" style="--ancho: {{ [(g.valor * 100 / tope)|round(1), 1]|max }}%"></div></div>
       </a>
       {% else %}
-      <p class="small text-muted mt-2 mb-0">
-        {% if hay_clientes %}Todos los clientes mayoristas han comprado en los últimos {{ dias_sin_compra }} días. 👌
-        {% else %}Aún no hay clientes mayoristas registrados.{% endif %}
-      </p>
+      <p class="text-muted small mb-0">No hay deudas pendientes con proveedores.</p>
       {% endfor %}
-      <a href="{{ url_for('mayoristas.index') }}" class="small mt-3">Ver mayoristas →</a>
+      {% if proveedores|length > 7 %}<a href="{{ url_for('deudas.index') }}" class="small">Ver los {{ proveedores|length }} proveedores →</a>{% endif %}
     </div>
   </div>
 </div>
 
 <div class="row g-3">
-  <div class="col-lg-7">
-    <div class="card card-body shadow-sm h-100">
-      <h6>Urgente: vencidas y por vencer</h6>
-      <table class="table table-sm table-hover align-middle mb-0">
-        <thead><tr><th>Proveedor</th><th>Factura</th><th>Fecha límite</th><th class="text-end">Saldo</th><th>Estado</th></tr></thead>
-        <tbody>
-          {% for f in resumen.urgentes[:10] %}
-          <tr onclick="location.href='{{ url_for('deudas.detalle', id=f.id) }}'" style="cursor:pointer">
-            <td>{{ f.proveedor.nombre }}</td>
-            <td>{{ f.numero }}</td>
-            <td>{{ f.fecha_limite.strftime('%d/%m/%Y') }}
-              <br><small class="text-{{ 'danger' if f.dias_para_vencer < 0 else 'muted' }}">
-                {% if f.dias_para_vencer < 0 %}hace {{ -f.dias_para_vencer }} días
-                {% elif f.dias_para_vencer == 0 %}hoy
-                {% else %}en {{ f.dias_para_vencer }} días{% endif %}
-              </small>
-            </td>
-            <td class="text-end fw-bold">{{ f.saldo|pesos }}</td>
-            <td>{{ badge_estado(f.estado) }}</td>
-          </tr>
-          {% else %}
-          <tr><td colspan="5" class="text-center text-muted py-3">Nada urgente. 👌</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% if resumen.urgentes|length > 10 %}
-      <a href="{{ url_for('deudas.index') }}" class="small mt-2">Ver las {{ resumen.urgentes|length }} →</a>
-      {% endif %}
+  {# ---------- Clientes para recuperar ---------- #}
+  <div class="col-lg-7" id="recuperar">
+    <div class="card card-body shadow-sm h-100 aparecer" style="--i: 11">
+      <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-2 mb-1">
+        <h5 class="mb-0">Clientes para recuperar</h5>
+        {% if n_recuperar %}<span class="small text-muted">{{ n_recuperar }} sin comprar hace +{{ dias_sin_compra }} días</span>{% endif %}
+      </div>
+      <p class="small text-muted mb-3">Primero los que más compraban. El botón abre WhatsApp con un mensaje listo para enviar.</p>
+      {% for c in recuperar %}
+      <div class="cliente-fila aparecer" style="--i: {{ 12 + loop.index }}">
+        <span class="avatar avatar-iniciales cliente-avatar">{{ c.cliente.nombre[:1]|upper }}</span>
+        <a href="{{ url_for('clientes.detalle', id=c.cliente.id) }}" class="cliente-info text-reset text-decoration-none">
+          <div class="fw-semibold text-truncate">{{ c.cliente.nombre }}{% if c.cliente.es_mayorista %} <span class="badge text-bg-light">Mayorista</span>{% endif %}</div>
+          <div class="small text-muted">Compró {{ c.total|pesos }} · última vez {{ c.ultima.strftime('%d/%m/%Y') }}</div>
+        </a>
+        <span class="cambio cambio-neutro">{{ c.dias }} días</span>
+        {% if c.whatsapp %}
+        <a href="{{ c.whatsapp }}" target="_blank" rel="noopener" class="btn btn-sm btn-whatsapp" aria-label="Escribir a {{ c.cliente.nombre }} por WhatsApp"><i class="bi bi-whatsapp"></i> <span class="d-none d-sm-inline">Escribir</span></a>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="alerta alerta-ok"><i class="bi bi-check-circle"></i><span class="alerta-texto">Todos los clientes han comprado en los últimos {{ dias_sin_compra }} días.</span></div>
+      {% endfor %}
+      <a href="{{ url_for('clientes.index') }}" class="small mt-2">Ver todos los clientes →</a>
     </div>
   </div>
-  <div class="col-lg-5">
-    <div class="card card-body shadow-sm h-100">
-      <h6>Últimos abonos</h6>
-      <ul class="list-group list-group-flush">
-        {% for p in ultimos_abonos %}
-        <li class="list-group-item d-flex justify-content-between">
-          <span>{{ p.proveedor.nombre }}<br><small class="text-muted">{{ p.fecha.strftime('%d/%m/%Y') }} · {{ p.medio }}</small></span>
-          <span class="fw-bold text-success">{{ p.valor|pesos }}</span>
-        </li>
-        {% else %}
-        <li class="list-group-item text-muted">Aún no hay abonos.</li>
-        {% endfor %}
-      </ul>
+
+  <div class="col-lg-5 d-flex flex-column gap-3">
+    {# ---------- Publicidad ---------- #}
+    <div class="card card-body shadow-sm aparecer" style="--i: 12">
+      <div class="d-flex justify-content-between align-items-baseline mb-2">
+        <h5 class="mb-0">Publicidad de {{ mes|lower }}</h5>
+        <a href="{{ url_for('marketing.index') }}" class="small">Rentabilidad →</a>
+      </div>
+      <div class="d-flex justify-content-between small"><span class="text-muted">Vendido por redes</span><strong>{{ publicidad.ventas|pesos }}</strong></div>
+      <div class="d-flex justify-content-between small mb-2"><span class="text-muted">Pauta a la fecha</span><strong>{{ publicidad.inversion|pesos }}</strong></div>
+      {% if publicidad.retorno is not none %}
+      {% set rinde = publicidad.retorno >= publicidad.equilibrio %}
+      <div class="retorno {{ 'retorno-bien' if rinde else 'retorno-mal' }}">
+        <span>Por cada $1 invertido</span>
+        <strong>${{ '%.2f'|format(publicidad.retorno)|replace('.', ',') }}</strong>
+        <small>{{ 'Se está pagando sola' if rinde else 'Por ahora no alcanza a pagarse' }} (mínimo ${{ publicidad.equilibrio }})</small>
+      </div>
+      {% else %}<p class="small text-muted mb-0">No hay pauta registrada este mes.</p>{% endif %}
+    </div>
+
+    {# ---------- Últimos abonos ---------- #}
+    <div class="card card-body shadow-sm flex-grow-1 aparecer" style="--i: 13">
+      <div class="d-flex justify-content-between align-items-baseline mb-2">
+        <h5 class="mb-0">Últimos abonos</h5>
+        <a href="{{ url_for('abonos.index') }}" class="small">Ver todos →</a>
+      </div>
+      {% for p in ultimos_abonos %}
+      <div class="abono-fila">
+        <span><span class="fw-medium">{{ p.proveedor.nombre }}</span><br><small class="text-muted">{{ p.fecha.strftime('%d/%m/%Y') }} · {{ p.medio }}</small></span>
+        <strong class="texto-sube">{{ p.valor|pesos }}</strong>
+      </div>
+      {% else %}<p class="small text-muted mb-0">Aún no hay abonos.</p>{% endfor %}
     </div>
   </div>
 </div>
@@ -171,40 +270,86 @@
 
 {% block scripts %}
 <script>
+(() => {
+  const g = {{ grafica|tojson }};
+  const reducir = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const css = getComputedStyle(document.documentElement);
+  const color = n => css.getPropertyValue(n).trim();
+  const DETAL = color('--serie-detal'), MAYOR = color('--serie-mayor'), TINTA = color('--tinta-suave');
   const pesos = v => '$' + Math.round(v).toLocaleString('es-CO');
   const millones = v => '$' + (v / 1e6).toLocaleString('es-CO', { maximumFractionDigits: 1 }) + 'M';
-  const tooltipPesos = { callbacks: { label: c => pesos(c.raw) } };
 
-  const semanas = {{ grafica_semanas|tojson }};
-  new Chart(document.getElementById('grafSemanas'), {
-    type: 'bar',
-    data: {
-      labels: semanas.etiquetas,
-      datasets: [{
-        data: semanas.valores,
-        backgroundColor: semanas.etiquetas.map((_, i) => i === 0 ? '#dc3545' : '#0d6efd'),
-      }],
-    },
-    options: {
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: tooltipPesos },
-      scales: { y: { ticks: { callback: millones } } },
-    },
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  Chart.defaults.color = TINTA;
+  if (reducir) Chart.defaults.animation = false;
+
+  // Números que suben de 0 a su valor
+  const formatos = { pesos, numero: v => Math.round(v).toLocaleString('es-CO'), porcentaje: v => Math.round(v) + '%' };
+  document.querySelectorAll('[data-contar]').forEach(el => {
+    const final = Number(el.dataset.contar), f = formatos[el.dataset.formato] || formatos.numero;
+    if (reducir || !final) { el.textContent = f(final); return; }
+    const inicio = performance.now(), dur = 900;
+    const paso = t => {
+      const p = Math.min((t - inicio) / dur, 1), e = 1 - Math.pow(1 - p, 3);
+      el.textContent = f(final * e);
+      if (p < 1) requestAnimationFrame(paso);
+    };
+    requestAnimationFrame(paso);
   });
 
-  const proveedores = {{ grafica_proveedores|tojson }};
-  new Chart(document.getElementById('grafProveedores'), {
-    type: 'bar',
-    data: {
-      labels: proveedores.nombres,
-      datasets: [{ data: proveedores.valores, backgroundColor: '#6f42c1' }],
-    },
-    options: {
-      indexAxis: 'y',
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: tooltipPesos },
-      scales: { x: { ticks: { callback: millones } } },
-    },
+  // Barras y anillo de la meta: se llenan cuando aparecen en pantalla
+  const llenar = el => el.classList.add('lleno');
+  const rellenos = document.querySelectorAll('.barra-relleno, .anillo-relleno');
+  if (reducir || !('IntersectionObserver' in window)) rellenos.forEach(llenar);
+  else {
+    const obs = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { llenar(e.target); obs.unobserve(e.target); } }), { threshold: 0.2 });
+    rellenos.forEach(el => obs.observe(el));
+  }
+
+  // Mini gráficas de las tarjetas: acumulado del mes y ventas de los últimos 14 días
+  document.querySelectorAll('canvas.sparkline').forEach(c => {
+    const datos = g[c.dataset.serie] || [];
+    if (datos.length < 2) { c.remove(); return; }
+    new Chart(c, {
+      type: 'line',
+      data: { labels: datos.map((_, i) => i), datasets: [{ data: datos, borderColor: DETAL, borderWidth: 1.5, pointRadius: 0, tension: .35, fill: false }] },
+      options: { responsive: false, events: [], plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        scales: { x: { display: false }, y: { display: false } } },
+    });
   });
+
+  // Últimos 7 días
+  const lienzo = document.getElementById('grafSiete');
+  if (lienzo) {
+    const s = g.siete;
+    new Chart(lienzo, {
+      type: 'bar',
+      data: {
+        labels: s.map(d => d.etiqueta),
+        datasets: [
+          { label: 'Al detal', data: s.map(d => d.minorista), backgroundColor: DETAL, stack: 'v', borderRadius: 4, borderSkipped: 'start', maxBarThickness: 46 },
+          { label: 'Al por mayor', data: s.map(d => d.mayorista), backgroundColor: MAYOR, stack: 'v', borderRadius: 4, borderSkipped: 'start', maxBarThickness: 46 },
+        ],
+      },
+      options: {
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        animation: reducir ? false : { duration: 700, delay: c => c.type === 'data' ? c.dataIndex * 70 : 0, easing: 'easeOutCubic' },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: {
+            title: items => s[items[0].dataIndex].etiqueta + (s[items[0].dataIndex].festivo ? ' · festivo' : ''),
+            label: c => `${c.dataset.label}: ${pesos(c.raw)}`,
+            footer: items => { const d = s[items[0].dataIndex]; return [`Total: ${pesos(d.neto)}`, `${d.numero} ventas · ${d.prendas} prendas`]; },
+          } },
+        },
+        scales: { x: { stacked: true, grid: { display: false } },
+                  y: { stacked: true, border: { display: false }, ticks: { callback: millones } } },
+        onClick: (e, els) => { if (els.length) location.href = s[els[0].index].url; },
+        onHover: (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
+      },
+    });
+  }
+})();
 </script>
 {% endblock %}
