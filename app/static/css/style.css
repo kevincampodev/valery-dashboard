@@ -20,6 +20,11 @@
   --borde: #e6e6ea;
   --hover: #f2f2f5;
 
+  /* Gráficas: colores validados para daltonismo y contraste */
+  --serie-detal: #2369b3;      /* azul océano */
+  --serie-mayor: #14a39a;      /* verde azulado */
+  --serie-gris: #9aa0a6;
+
   --bs-body-font-family: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --bs-body-bg: var(--fondo);
   --bs-body-color: var(--tinta);
@@ -99,6 +104,81 @@ h2 { font-size: 1.85rem; }
   margin: -.5rem 0 1.5rem; padding: .7rem 1rem; border-radius: 10px; background: var(--marca); color: #fff; font-size: .9rem; }
 .vista-previa .ico { vertical-align: -3px; margin-right: .25rem; }
 .vista-previa form { margin: 0; }
+
+/* ===== Tablero de ventas ===== */
+@keyframes aparecer { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.aparecer { animation: aparecer .5s cubic-bezier(.2,.7,.3,1) both; animation-delay: calc(var(--i, 0) * 60ms); }
+
+.tarjeta-kpi { transition: transform .2s, box-shadow .2s; }
+.tarjeta-kpi:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(15, 30, 60, .08) !important; }
+.kpi-titulo { font-size: .78rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--tinta-suave); }
+.kpi-valor { font-size: clamp(1.4rem, 2.2vw, 1.7rem); white-space: nowrap; font-weight: 700; letter-spacing: -.02em; margin: .35rem 0 .25rem; font-variant-numeric: tabular-nums; }
+.sparkline { flex-shrink: 0; }
+.cambio { font-size: .75rem; font-weight: 600; padding: .15rem .45rem; border-radius: 999px; white-space: nowrap; }
+.cambio-sube { color: #0f7a3d; background: #e5f4e9; }
+.cambio-baja { color: #b42318; background: #fbe9e7; }
+.cambio-neutro { color: var(--tinta-tenue); background: var(--hover); font-weight: 500; }
+
+.meta-pista { position: relative; height: 14px; border-radius: 999px; background: var(--marca-suave); overflow: hidden; }
+.meta-relleno { height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, #2369b3, #0f4c81);
+  transition: width 1.2s cubic-bezier(.2,.7,.3,1); }
+.meta-relleno.lleno { width: var(--ancho); }
+.meta-porcentaje { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-size: .68rem; font-weight: 700; color: var(--tinta); }
+
+.leyenda { display: flex; flex-wrap: wrap; gap: .9rem; color: var(--tinta-suave); }
+.leyenda span { display: inline-flex; align-items: center; gap: .35rem; }
+.punto { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.punto-detal { background: var(--serie-detal); } .punto-mayor { background: var(--serie-mayor); }
+.linea-prom, .linea-solida, .linea-gris, .linea-meta, .linea-proy { width: 18px; height: 0; display: inline-block; }
+.linea-prom { border-top: 2px dashed var(--serie-gris); }
+.linea-solida { border-top: 3px solid var(--serie-detal); }
+.linea-gris { border-top: 2px solid var(--serie-gris); }
+.linea-meta { border-top: 2px dashed var(--tinta-suave); }
+.linea-proy { border-top: 2px dotted var(--serie-detal); }
+
+.barra-fila { margin-bottom: .75rem; }
+.barra-texto { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; font-size: .88rem; margin-bottom: .25rem; }
+.barra-nombre { font-weight: 500; }
+.barra-valor { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.barra-valor small { display: block; font-weight: 400; font-size: .72rem; color: var(--tinta-tenue); }
+.barra-pista { height: 8px; border-radius: 999px; background: var(--hover); overflow: hidden; }
+.barra-relleno { height: 100%; width: 0; border-radius: 999px; transition: width 1s cubic-bezier(.2,.7,.3,1); }
+.barra-relleno.lleno { width: var(--ancho); }
+.barra-detal { background: var(--serie-detal); } .barra-mayor { background: var(--serie-mayor); } .barra-gris { background: var(--serie-gris); }
+.separador-suave { font-size: .7rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--tinta-tenue);
+  border-top: 1px solid var(--borde); padding-top: .75rem; margin: .5rem 0 .75rem; }
+.alerta-dato { padding: .65rem .8rem; border-radius: 10px; background: #fff6e5; color: #7a4d00; font-size: .85rem; }
+
+.calendario { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.cal-cabecera { text-align: center; font-size: .7rem; font-weight: 600; color: var(--tinta-tenue); }
+.cal-dia { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-size: .78rem;
+  text-decoration: none; color: var(--tinta); transition: transform .15s, box-shadow .15s; }
+.cal-dia:hover { transform: scale(1.08); box-shadow: 0 4px 12px rgba(15, 30, 60, .18); z-index: 1; }
+.nivel-0 { background: var(--hover); color: var(--tinta-tenue); }
+.nivel-1 { background: #d6e6f5; } .nivel-2 { background: #9cc3e8; }
+.nivel-3 { background: #4f8fcf; color: #fff; } .nivel-4 { background: #0f4c81; color: #fff; }
+.cal-festivo { outline: 2px dashed var(--serie-gris); outline-offset: -2px; }
+.cal-hoy { box-shadow: 0 0 0 2px var(--marca); }
+.cal-escala { display: flex; align-items: center; gap: 4px; }
+.cal-muestra { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.cal-festivo-muestra { background: var(--hover); outline: 2px dashed var(--serie-gris); outline-offset: -2px; }
+.cal-vacio { aspect-ratio: 1; }
+
+.prenda-top { position: relative; padding: .8rem; border: 1px solid var(--borde); border-radius: 12px; height: 100%;
+  transition: border-color .2s, transform .2s; }
+.prenda-top:hover { border-color: var(--serie-detal); transform: translateY(-2px); }
+.prenda-puesto { position: absolute; top: .55rem; right: .7rem; font-size: .72rem; font-weight: 700; color: var(--tinta-tenue); }
+.prenda-ref { font-weight: 700; font-size: 1.05rem; }
+.prenda-unidades { font-size: .8rem; margin-top: .3rem; }
+
+.detalle-diario summary { cursor: pointer; list-style: none; }
+.detalle-diario summary::before { content: "▸ "; color: var(--tinta-tenue); }
+.detalle-diario[open] summary::before { content: "▾ "; }
+
+@media (prefers-reduced-motion: reduce) {
+  .aparecer { animation: none; }
+  .barra-relleno, .meta-relleno, .tarjeta-kpi, .cal-dia, .prenda-top { transition: none; }
+}
 
 /* Foto de perfil en Mi cuenta */
 .avatar-grande { width: 96px; height: 96px; font-size: 2rem; }

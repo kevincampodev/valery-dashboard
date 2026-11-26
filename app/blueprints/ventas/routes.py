@@ -7,7 +7,8 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from . import bp
 from ...extensions import db
-from ...models import Venta, Vendedora, Parametro, LineaVenta, Cliente, CANALES, MEDIOS_VENTA, MEDIOS_CONTACTO
+from ...models import (Venta, Vendedora, Parametro, LineaVenta, Cliente, Meta, CANALES, MEDIOS_VENTA,
+                      MEDIOS_CONTACTO)
 from ...services.clientes import normalizar_telefono, formato_telefono
 from ...services.mayoristas import es_mayorista, total_lineas, UMBRAL_MAYORISTA_DEFECTO
 from ...services.detalle_venta import leer_detalle
@@ -46,30 +47,106 @@ def _resolver_cliente(telefono_texto, nombre, autoriza):
     db.session.add(cliente)
     return cliente, None
 from ...services.ventas import resumen_mes
+from ...services.metas import avance_meta
+from ...services.tablero_ventas import (DIAS_SEMANA, variacion, indicadores, por_dia, acumulado, proyeccion,
+                                        calendario, ranking)
 from ...utils import a_pesos, a_fecha, formato_pesos, mes_desde_texto, rango_mes, nombre_mes
 
 
 @bp.route("/")
 def index():
+    hoy = date.today()
     inicio, fin = rango_mes(mes_desde_texto(request.args.get("mes")))
-    registros = (Venta.query.options(joinedload(Venta.vendedora))
+    registros = (Venta.query.options(joinedload(Venta.vendedora), selectinload(Venta.pagos))
                  .filter(Venta.fecha.between(inicio, fin)).all())
     resumen = resumen_mes(registros, inicio, fin)
+    dias = por_dia(registros, inicio, fin)
+
+    # Corte = último día con ventas cargadas (si el mes ya pasó, el último día del mes).
+    # Comparar contra "hoy" sería injusto cuando las facturas se cargan con unos días de atraso.
+    if fin < hoy:
+        corte = fin
+    else:
+        corte = max((r.fecha for r in registros), default=None)
+
+    # Mes anterior: mismos días para las tarjetas y el mes completo para la línea del acumulado
+    fin_ant = inicio - timedelta(days=1)
+    inicio_ant = fin_ant.replace(day=1)
+    anteriores = Venta.query.filter(Venta.fecha.between(inicio_ant, fin_ant)).all()
+    if corte:
+        corte_ant = inicio_ant.replace(day=min(corte.day, fin_ant.day))
+        comparables = [r for r in anteriores if r.fecha <= corte_ant]
+    else:
+        corte_ant, comparables = None, []
+    actual, previo = indicadores(registros), indicadores(comparables)
+    cambios = {k: variacion(actual[k], previo[k]) for k in actual}
+
+    # Meta del mes (la misma que se define en Metas)
+    meta = Meta.query.filter_by(periodo=inicio, canal="Total").first()
+    avance = None
+    if meta and corte:
+        avance = avance_meta(actual["neto"], meta.valor, inicio, fin, min(corte + timedelta(days=1), fin + timedelta(days=1)))
+
+    # Acumulado del mes, mes anterior, meta y proyección de cierre
+    fechas = list(dias)
+    netos = [dias[f]["neto"] for f in fechas]
+    acum = acumulado(netos)
+    if corte:
+        acum = [v if f <= corte else None for f, v in zip(fechas, acum)]
+    dias_ant = por_dia(anteriores, inicio_ant, fin_ant)
+    acum_ant = acumulado([d["neto"] for d in dias_ant.values()])
+    acum_ant = [acum_ant[i] if i < len(acum_ant) else None for i in range(len(fechas))]
+    linea_meta = [round(meta.valor * (i + 1) / len(fechas)) for i in range(len(fechas))] if meta else None
+    linea_proy, cierre = proyeccion(dias, corte, fin) if corte else ([None] * len(fechas), None)
+
+    # Medio de pago: con el desglose de los pagos mixtos cuando existe
+    por_medio = {}
+    for r in registros:
+        if r.es_devolucion or not r.pagos:
+            por_medio[r.medio_pago] = por_medio.get(r.medio_pago, 0) + r.neto
+        else:
+            for p in r.pagos:
+                por_medio[p.medio] = por_medio.get(p.medio, 0) + p.valor
+
+    grupos_vend, grupos_cont, grupos_medio = {}, {}, {}
+    for r in registros:
+        nombre = r.vendedora.nombre if r.vendedora else "Sin vendedora"
+        contacto = r.medio_contacto or "Sin dato"
+        for grupos, clave in ((grupos_vend, nombre), (grupos_cont, contacto)):
+            g = grupos.setdefault(clave, {"valor": 0, "numero": 0})
+            g["valor"] += r.neto
+            g["numero"] += 0 if r.es_devolucion else 1
+    for medio, valor in por_medio.items():
+        grupos_medio[medio] = {"valor": valor, "numero": None}
+    total = actual["neto"]
+    vendedoras, vendedoras_aparte = ranking(grupos_vend, total, apartes=("Al por mayor", "Sin vendedora"))
+    medios, _ = ranking(grupos_medio, total)
+    contactos, contactos_aparte = ranking(grupos_cont, total, apartes=("Sin dato",))
+
+    top = (db.session.query(LineaVenta.referencia, func.max(LineaVenta.descripcion),
+                            func.sum(LineaVenta.cantidad), func.sum(LineaVenta.cantidad * LineaVenta.precio_unitario))
+           .join(Venta).filter(Venta.fecha.between(inicio, fin), Venta.es_devolucion.is_(False))
+           .group_by(LineaVenta.referencia).order_by(func.sum(LineaVenta.cantidad).desc()).limit(5).all())
 
     grafica = {
-        "etiquetas": [d.strftime("%d") for d in resumen["por_dia"]],
-        "series": {c: [d["canales"].get(c, 0) for d in resumen["por_dia"].values()] for c in CANALES},
+        "dias": [{"etiqueta": f.strftime("%d"), "semana": DIAS_SEMANA[f.weekday()], "fecha": f.isoformat(),
+                  "url": url_for("ventas.dia", fecha=f.isoformat()), "hoy": f == hoy, **d} for f, d in dias.items()],
+        "acumulado": acum, "anterior": acum_ant, "meta": linea_meta, "proyeccion": linea_proy,
+        "nombre_anterior": nombre_mes(inicio_ant).split()[0],
     }
+    maximo_dia = max((d["neto"] for d in dias.values()), default=0)
 
     return render_template(
         "ventas/index.html",
-        r=resumen,
-        grafica=grafica,
-        canales=CANALES,
-        titulo=nombre_mes(inicio),
+        r=resumen, actual=actual, cambios=cambios, corte=corte, corte_ant=corte_ant,
+        meta=meta, avance=avance, cierre=cierre, grafica=grafica, dias=dias, maximo_dia=maximo_dia,
+        semanas=calendario(dias), dias_semana=DIAS_SEMANA,
+        vendedoras=vendedoras, vendedoras_aparte=vendedoras_aparte, medios=medios,
+        contactos=contactos, contactos_aparte=contactos_aparte, top=top,
+        titulo=nombre_mes(inicio), mes_anterior=nombre_mes(inicio_ant),
         anterior=(inicio - timedelta(days=1)).strftime("%Y-%m"),
         siguiente=(fin + timedelta(days=1)).strftime("%Y-%m"),
-        hoy=date.today(),
+        hoy=hoy,
     )
 
 
