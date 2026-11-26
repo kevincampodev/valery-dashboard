@@ -1,6 +1,6 @@
 from datetime import date, datetime, timedelta
 
-from flask import render_template, url_for
+from flask import render_template, url_for, request, jsonify
 from flask_login import current_user
 from sqlalchemy import func
 from sqlalchemy.orm import joinedload, selectinload
@@ -139,3 +139,60 @@ def index():
         publicidad=publicidad, alertas=alertas,
         ultimos_abonos=Pago.query.order_by(Pago.fecha.desc(), Pago.id.desc()).limit(4).all(),
     )
+
+
+@bp.route("/aplicaciones")
+def aplicaciones():
+    """Todas las secciones del panel como íconos, al estilo del inicio de iCloud."""
+    ahora = datetime.now(ZONA) if ZONA else datetime.now()
+    return render_template("dashboard/aplicaciones.html", saludo=saludo(ahora.hour),
+                           nombre=(current_user.nombre or "").split()[0] if current_user.nombre else "")
+
+
+@bp.route("/buscar")
+def buscar():
+    """
+    Resultados del buscador (Ctrl + K): clientes, proveedores, vendedoras y facturas.
+    Las secciones del menú se buscan en el navegador; aquí solo van los datos,
+    y solo para los roles que ven todo el panel.
+    """
+    from ...models import Proveedor, Vendedora
+    from ...services.permisos import ve_todo
+    from ...services.clientes import formato_telefono
+
+    texto = " ".join(request.args.get("q", "").split())[:60]
+    if not ve_todo() or len(texto) < 2:
+        return jsonify(resultados=[])
+
+    patron = f"%{texto}%"
+    digitos = "".join(c for c in texto if c.isdigit())
+    resultados = []
+
+    for v in Vendedora.query.filter(Vendedora.nombre.ilike(patron)).order_by(Vendedora.nombre).limit(3):
+        resultados.append({"grupo": "Vendedoras", "titulo": v.nombre, "icono": "users-round",
+                           "detalle": "Activa" if v.activa else "Inactiva", "url": url_for("ventas.vendedoras")})
+
+    for p in Proveedor.query.filter(Proveedor.nombre.ilike(patron)).order_by(Proveedor.nombre).limit(4):
+        resultados.append({"grupo": "Proveedores", "titulo": p.nombre, "icono": "receipt-text",
+                           "detalle": "Ver sus facturas", "url": url_for("deudas.index", proveedor=p.id)})
+
+    filtro_cliente = Cliente.nombre.ilike(patron)
+    if len(digitos) >= 4:
+        filtro_cliente = filtro_cliente | Cliente.telefono.contains(digitos)
+    for c in Cliente.query.filter(filtro_cliente).order_by(Cliente.nombre).limit(5):
+        resultados.append({"grupo": "Clientes", "titulo": c.nombre, "icono": "contact-round",
+                           "detalle": " · ".join(x for x in (formato_telefono(c.telefono) if c.telefono else "",
+                                                          "Mayorista" if c.es_mayorista else "", c.ciudad or "") if x),
+                           "url": url_for("clientes.detalle", id=c.id)})
+
+    if digitos and digitos == texto.lstrip("#"):
+        for v in Venta.query.filter(Venta.numero_factura == int(digitos)).limit(1):
+            resultados.append({"grupo": "Facturas de venta", "titulo": f"Factura #{v.numero_factura}",
+                               "icono": "shopping-bag", "detalle": f"{v.fecha.strftime('%d/%m/%Y')} · ${v.neto:,}".replace(",", "."),
+                               "url": url_for("ventas.dia", fecha=v.fecha.isoformat())})
+    for f in (Factura.query.options(joinedload(Factura.proveedor)).filter(Factura.numero.ilike(patron))
+              .order_by(Factura.fecha_emision.desc()).limit(4)):
+        resultados.append({"grupo": "Facturas de proveedores", "titulo": f"{f.proveedor.nombre} · {f.numero}",
+                           "icono": "file-text", "detalle": f"Vence {f.fecha_limite.strftime('%d/%m/%Y')}",
+                           "url": url_for("deudas.detalle", id=f.id)})
+    return jsonify(resultados=resultados)

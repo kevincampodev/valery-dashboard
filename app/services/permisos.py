@@ -15,7 +15,8 @@ ROLES_COMPLETOS = {"superadmin", "admin"}
 
 # Páginas de la cuenta que cualquier usuario necesita (contraseña, 2FA, foto, salir)
 CUENTA = {"auth.cuenta", "auth.cambiar_password", "auth.activar_2fa", "auth.editar_perfil", "auth.foto",
-          "auth.logout", "auth.salir_vista_previa", "static"}
+          "auth.logout", "auth.salir_vista_previa", "static",
+          "dashboard.aplicaciones", "dashboard.buscar"}   # muestran solo lo que el rol puede ver
 
 PERMITIDAS = {
     "marketing": CUENTA | {"marketing.index", "redes.index", "redes.facturas", "redes.descargar"},

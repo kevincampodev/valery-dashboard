@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Todas las secciones · Valery Dashboard{% endblock %}
+{% block content %}
+{% from "_macros.html" import icono %}
+{% set contadores = menu_contadores() %}
+<div class="apps">
+  <div class="apps-cabecera aparecer" style="--i: 0">
+    {% if current_user.foto %}
+    <img src="{{ url_for('auth.foto', id=current_user.id, v=current_user.foto[:8]) }}" alt="" class="apps-avatar">
+    {% else %}
+    <span class="apps-avatar apps-iniciales">{{ current_user.iniciales }}</span>
+    {% endif %}
+    <h1>{{ saludo }}{% if nombre %}, {{ nombre }}{% endif %}.</h1>
+    <a href="{{ url_for('auth.cuenta') }}" class="apps-cuenta">Mi cuenta ›</a>
+  </div>
+
+  {% set mosaicos = [] %}
+  {% for s in menu_general() if s.endpoint != 'dashboard.aplicaciones' %}{% set _ = mosaicos.append(s) %}{% endfor %}
+  {% for titulo, items in menu_secciones() %}{% for s in items %}{% set _ = mosaicos.append(s) %}{% endfor %}{% endfor %}
+
+  <div class="apps-rejilla">
+    {% for s in mosaicos %}
+    {% set c = contadores.get(s.endpoint) %}
+    <a href="{{ url_for(s.endpoint) }}" class="app aparecer" style="--i: {{ loop.index }}" title="{{ s.descripcion }}">
+      <span class="app-icono" style="--c1: {{ s.color[0] }}; --c2: {{ s.color[1] }}">
+        {{ icono(s.icono) }}
+        {% if c %}<span class="app-contador{{ ' app-contador-punto' if not c[0] }}" title="{{ c[2] }}">{{ c[0] }}</span>{% endif %}
+      </span>
+      <span class="app-nombre">{{ s.nombre }}</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  <p class="apps-pista aparecer" style="--i: {{ mosaicos|length + 1 }}">Tip: presiona <kbd>Ctrl</kbd> + <kbd>K</kbd> en cualquier página para buscar una sección, un cliente o una factura.</p>
+</div>
+{% endblock %}
