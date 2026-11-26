@@ -523,6 +523,113 @@ a.tarjeta-kpi:hover { color: inherit; }
   .barra-relleno, .meta-relleno, .tarjeta-kpi, .cal-dia, .prenda-top, .anillo-relleno, .agenda-fila, .alerta { transition: none; }
 }
 
+/* ===== Deudas ===== */
+.resumen-deuda { display: grid; grid-template-columns: minmax(220px, 1.4fr) repeat(4, minmax(0, 1fr)); gap: 1rem; align-items: stretch; }
+@media (max-width: 1199.98px) { .resumen-deuda { grid-template-columns: repeat(2, minmax(0, 1fr)); } .resumen-principal { grid-column: 1 / -1; } }
+.resumen-valor { font-size: clamp(1.7rem, 3vw, 2.3rem); font-weight: 700; letter-spacing: -.03em; line-height: 1.1; margin: .2rem 0;
+  font-variant-numeric: tabular-nums; }
+.resumen-dato { display: flex; flex-direction: column; justify-content: center; gap: .1rem; padding: .65rem .85rem; border-radius: 12px;
+  background: var(--hover); color: var(--tinta); text-decoration: none; transition: transform .15s, background .15s; }
+.resumen-dato:hover { transform: translateY(-2px); background: #ebebef; color: var(--tinta); }
+.resumen-dato strong { font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.resumen-dato small { color: var(--tinta-tenue); font-size: .75rem; }
+.resumen-etiqueta { display: inline-flex; align-items: center; gap: .35rem; font-size: .76rem; font-weight: 600; color: var(--tinta-suave); }
+.resumen-etiqueta .punto { width: 9px; height: 9px; border-radius: 50%; }
+.dato-vencida .punto, .tramo-vencida { background: #e5342a; }
+.dato-por-vencer .punto, .tramo-por-vencer { background: #f5a300; }
+.dato-al-dia .punto, .tramo-al-dia { background: var(--serie-detal); }
+.dato-vencida strong { color: #b42318; }
+.dato-abonado .bi { color: #1f9d55; }
+.dato-abonado strong { color: #0f7a3d; }
+
+.reparto { display: flex; gap: 3px; height: 10px; margin-top: 1rem; border-radius: 999px; overflow: hidden; background: var(--hover); }
+.reparto-tramo { display: block; height: 100%; width: 0; transition: width 1s cubic-bezier(.2,.7,.3,1), filter .15s; }
+.reparto-tramo.lleno { width: var(--ancho); }
+.reparto-tramo:hover { filter: brightness(1.12); }
+
+.barra-filtros { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .6rem; }
+.segmentado { display: inline-flex; padding: 3px; border-radius: 11px; background: #e8e8ed; gap: 2px; max-width: 100%; overflow-x: auto; }
+.segmentado a { display: inline-flex; align-items: center; gap: .4rem; padding: .38rem .85rem; border-radius: 8px; font-size: .86rem;
+  font-weight: 500; color: var(--tinta); text-decoration: none; white-space: nowrap; transition: background .2s, box-shadow .2s; }
+.segmentado a:hover { background: rgba(255, 255, 255, .5); }
+.segmentado a.activo { background: var(--superficie); font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, .12), 0 0 0 .5px rgba(0, 0, 0, .04); }
+.segmentado-n { font-size: .72rem; font-weight: 600; color: var(--tinta-tenue); font-variant-numeric: tabular-nums; }
+
+.filtros-deuda { display: grid; grid-template-columns: minmax(220px, 2fr) minmax(170px, 1.2fr) minmax(170px, 1.2fr) auto; gap: .5rem; }
+.filtros-deuda:has(select[name="estado"]) { grid-template-columns: minmax(220px, 2fr) repeat(3, minmax(150px, 1fr)) auto; }
+@media (max-width: 991.98px) { .filtros-deuda, .filtros-deuda:has(select[name="estado"]) { grid-template-columns: 1fr 1fr; } .campo-buscar { grid-column: 1 / -1; } }
+.campo-buscar { position: relative; }
+.campo-buscar .bi { position: absolute; left: .8rem; top: 50%; transform: translateY(-50%); color: var(--tinta-tenue); pointer-events: none; }
+.campo-buscar input { padding-left: 2.2rem; }
+.btn-excel { white-space: nowrap; align-self: center; }
+.filtros-activos { font-size: .85rem; color: var(--tinta-suave); }
+
+.chip { display: inline-block; font-size: .72rem; font-weight: 600; padding: .12rem .5rem; border-radius: 999px; white-space: nowrap; }
+.chip-vencida { background: #fdecea; color: #b42318; }
+.chip-por-vencer { background: #fff3d6; color: #8a5a00; }
+.chip-al-dia { background: var(--marca-suave); color: var(--marca); }
+.chip-pagada { background: #e5f4e9; color: #0f7a3d; }
+
+.tabla-card { overflow: hidden; }
+.tabla-deudas > thead th { padding-left: 1.1rem; padding-right: 1.1rem; background: #fafafb; }
+.tabla-deudas td { padding-left: 1.1rem !important; padding-right: 1.1rem !important; }
+.fila-deuda { cursor: pointer; }
+.fila-deuda .c-factura { width: 34%; }
+.fila-deuda .c-vence { width: 22%; }
+.fila-deuda .c-pagado { width: 26%; }
+.deuda-proveedor { font-weight: 600; }
+.deuda-numero { display: flex; flex-wrap: wrap; align-items: center; gap: .1rem .4rem; font-size: .84rem; color: var(--tinta-suave); }
+.deuda-numero a { color: var(--tinta-suave); text-decoration: none; font-variant-numeric: tabular-nums; }
+.deuda-numero a:hover { color: var(--marca-viva); text-decoration: underline; }
+.deuda-emision { font-size: .76rem; color: var(--tinta-tenue); }
+.deuda-fecha { font-variant-numeric: tabular-nums; font-size: .9rem; }
+.deuda-pactada { font-size: .72rem; color: var(--marca-viva); margin-bottom: .1rem; }
+.deuda-sub { font-size: .78rem; color: var(--tinta-tenue); font-variant-numeric: tabular-nums; }
+.deuda-pagada-el { font-size: .86rem; color: #0f7a3d; font-weight: 500; }
+.pagado-pista { height: 6px; border-radius: 999px; background: var(--hover); overflow: hidden; margin: .25rem 0; max-width: 200px; }
+.pagado-relleno { background: #1f9d55; }
+.deuda-saldo { font-weight: 700; font-size: 1rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.deuda-cero { color: var(--tinta-tenue); }
+.fila-vencida { box-shadow: inset 3px 0 0 #e5342a; }
+.fila-por-vencer { box-shadow: inset 3px 0 0 #f5a300; }
+.fila-pagada .deuda-proveedor, .fila-pagada .deuda-fecha { color: var(--tinta-suave); font-weight: 500; }
+.tabla-deudas tfoot td { background: #fafafb; border-top: 1px solid var(--borde); border-bottom: 0; font-size: .85rem; color: var(--tinta-suave);
+  padding-top: .75rem; padding-bottom: .75rem; }
+.tabla-deudas tfoot strong { color: var(--tinta); font-variant-numeric: tabular-nums; }
+
+.lista-proveedores { display: flex; flex-direction: column; gap: .6rem; }
+.proveedor-deuda { overflow: hidden; }
+.proveedor-deuda summary { display: grid; grid-template-columns: minmax(180px, 1.5fr) minmax(170px, 1fr) minmax(170px, 1fr) minmax(130px, auto) 20px;
+  align-items: center; gap: 1rem; padding: .9rem 1.2rem; cursor: pointer; list-style: none; }
+.proveedor-deuda summary::-webkit-details-marker { display: none; }
+.proveedor-deuda summary:hover { background: #fafafb; }
+.pd-nombre { display: flex; flex-direction: column; min-width: 0; }
+.pd-nombre strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pd-saldo { text-align: right; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.pd-flecha { color: var(--tinta-tenue); transition: transform .25s; }
+.proveedor-deuda[open] .pd-flecha { transform: rotate(180deg); }
+.proveedor-deuda[open] summary { border-bottom: 1px solid var(--borde); }
+.proveedor-deuda .tabla-deudas td { background: transparent; }
+
+/* Celular: cada factura es una tarjeta */
+@media (max-width: 767.98px) {
+  .tabla-deudas thead { display: none; }
+  .tabla-deudas, .tabla-deudas tbody, .tabla-deudas tfoot { display: block; }
+  .tabla-deudas tr.fila-deuda { display: grid; grid-template-columns: 1fr auto; gap: .25rem .75rem; padding: .8rem 1rem; border-bottom: 1px solid #efeff2; }
+  .tabla-deudas tr.fila-deuda[hidden] { display: none; }
+  .tabla-deudas tr.fila-deuda > td { display: block; width: auto !important; padding: 0 !important; border: 0; }
+  .fila-deuda .c-factura { grid-column: 1; grid-row: 1; }
+  .fila-deuda .c-saldo { grid-column: 2; grid-row: 1; text-align: right; }
+  .fila-deuda .c-vence { grid-column: 1 / -1; display: flex !important; flex-wrap: wrap; align-items: center; gap: .4rem; }
+  .fila-deuda .c-pagado { grid-column: 1 / -1; }
+  .tabla-deudas tfoot tr { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .25rem 1rem; padding: .75rem 1rem; background: #fafafb; }
+  .tabla-deudas tfoot td { display: block; padding: 0 !important; border: 0; background: transparent; }
+  .proveedor-deuda summary { grid-template-columns: 1fr auto; gap: .4rem .75rem; padding: .85rem 1rem; }
+  .pd-estado { grid-column: 1; } .pd-pagado { grid-column: 1 / -1; } .pd-saldo { grid-column: 2; grid-row: 1; } .pd-flecha { display: none; }
+  .resumen-deuda { gap: .6rem; }
+}
+@media (prefers-reduced-motion: reduce) { .reparto-tramo, .resumen-dato, .pd-flecha { transition: none; } }
+
 /* Foto de perfil en Mi cuenta */
 .avatar-grande { width: 96px; height: 96px; font-size: 2rem; }
 

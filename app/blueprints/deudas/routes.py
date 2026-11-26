@@ -2,40 +2,120 @@ import io
 import zipfile
 from xml.etree.ElementTree import ParseError
 
-from flask import render_template, request, redirect, url_for, flash
+from datetime import date
+
+from flask import render_template, request, redirect, url_for, flash, send_file
+from openpyxl import Workbook
+from openpyxl.styles import Font
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import joinedload, selectinload
 from werkzeug.datastructures import FileStorage
 
 from . import bp
 from ...extensions import db
-from ...models import Proveedor, Factura, Documento
+from ...models import Proveedor, Factura, Documento, Pago, AplicacionPago
+from ...services.deudas_vista import (PESTANAS, ESTADOS, fila, en_pestana, filtrar, ordenar, resumen, totales,
+                                      por_proveedor, meses_disponibles)
 from ...services.archivos import guardar_archivo
 from ...services.dian import parsear_xml, extraer_paquetes
 from ...services.cartera import cartera_por_edades, RANGOS
 from ...utils import a_pesos, a_fecha, nit_base, normalizar
 
 
+def _filtros():
+    """Lee los filtros de la dirección. Así la página, el Excel y los enlaces del Inicio usan las mismas reglas."""
+    a = request.args
+    estado = a.get("estado", "") if a.get("estado", "") in ESTADOS else ""
+    pestana = a.get("ver", "")
+    if pestana not in PESTANAS:
+        # los enlaces del Inicio llegan con ?estado=...: se abre la pestaña que corresponde
+        pestana = {"vencida": "vencidas", "pagada": "pagadas"}.get(estado, "pendientes" if estado else "pendientes")
+    mes = a.get("mes", "")
+    return {"pestana": pestana, "estado": estado, "proveedor_id": a.get("proveedor", type=int),
+            "texto": a.get("q", "").strip()[:60], "mes": mes if len(mes) == 7 else "",
+            "vista": "proveedores" if a.get("vista") == "proveedores" else "facturas"}
+
+
+def _filas():
+    hoy = date.today()
+    facturas = (Factura.query.options(joinedload(Factura.proveedor),
+                                      selectinload(Factura.aplicaciones).joinedload(AplicacionPago.pago)).all())
+    return [fila(f, hoy) for f in facturas]
+
+
+def _aplicar(todas, filtros):
+    vista = filtrar(todas, filtros["proveedor_id"], filtros["estado"], filtros["texto"], filtros["mes"])
+    return ordenar(en_pestana(vista, filtros["pestana"])), vista
+
+
 @bp.route("/")
 def index():
-    proveedor_id = request.args.get("proveedor", type=int)
-    estado = request.args.get("estado", "")
+    filtros = _filtros()
+    todas = _filas()
+    filas, sin_pestana = _aplicar(todas, filtros)
+    inicio_mes = date.today().replace(day=1)
+    pagos_mes = Pago.query.filter(Pago.fecha >= inicio_mes).all()
 
-    consulta = Factura.query
-    if proveedor_id:
-        consulta = consulta.filter_by(proveedor_id=proveedor_id)
-    facturas = sorted(consulta.all(), key=lambda f: f.fecha_limite)
-
-    if estado:
-        facturas = [f for f in facturas if f.estado == estado]
+    def url_con(**cambios):
+        """La misma página cambiando solo algunos filtros (pestaña, vista, estado...)."""
+        args = request.args.to_dict()
+        args.update(cambios)
+        return url_for("deudas.index", **{k: v for k, v in args.items() if v not in (None, "")})
 
     return render_template(
         "deudas/index.html",
-        facturas=facturas,
+        url_con=url_con,
+        excel=url_for("deudas.excel", **request.args.to_dict()),
+        filas=filas,
+        f=filtros,
+        resumen=resumen(todas),
+        abonado_mes=sum(p.valor for p in pagos_mes), n_abonos_mes=len(pagos_mes),
+        conteos={p: len(en_pestana(sin_pestana, p)) for p in PESTANAS},
+        pestanas=PESTANAS, estados=ESTADOS,
+        totales=totales(filas),
+        grupos=por_proveedor(filas) if filtros["vista"] == "proveedores" else [],
         proveedores=Proveedor.query.order_by(Proveedor.nombre).all(),
-        total_saldo=sum(f.saldo for f in facturas),
-        proveedor_id=proveedor_id,
-        estado=estado,
+        meses=meses_disponibles(todas),
+        hoy=date.today(),
     )
+
+
+@bp.route("/excel")
+def excel():
+    """Exactamente lo que se está viendo en pantalla (misma pestaña y filtros)."""
+    filtros = _filtros()
+    filas, _ = _aplicar(_filas(), filtros)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Deudas"
+    ws.append(["Proveedor", "Factura", "Etiqueta", "Emisión", "Fecha límite", "Fecha original", "Total",
+               "Abonado", "Saldo", "Estado", "Días", "Pagada el"])
+    for celda in ws[1]:
+        celda.font = Font(bold=True)
+    for x in filas:
+        ws.append([x["proveedor"], x["numero"], x["etiqueta"] or "", x["emision"], x["limite"], x["original"],
+                   x["total"], x["abonado"], x["saldo"], x["estado"].capitalize(),
+                   x["dias"] if x["saldo"] else None, x["fecha_pago"]])
+        for col in (4, 5, 6, 12):
+            ws.cell(ws.max_row, col).number_format = "DD/MM/YYYY"
+        for col in (7, 8, 9):
+            ws.cell(ws.max_row, col).number_format = "$#,##0"
+    t = totales(filas)
+    ws.append([])
+    ws.append(["Totales", f"{t['numero']} facturas", "", None, None, None, t["total"], t["abonado"], t["saldo"]])
+    for col in (7, 8, 9):
+        ws.cell(ws.max_row, col).number_format = "$#,##0"
+    for celda in ws[ws.max_row]:
+        celda.font = Font(bold=True)
+    for letra, ancho in zip("ABCDEFGHIJKL", (26, 16, 20, 12, 13, 14, 15, 15, 15, 12, 7, 12)):
+        ws.column_dimensions[letra].width = ancho
+    ws.freeze_panes = "A2"
+
+    archivo = io.BytesIO()
+    wb.save(archivo)
+    archivo.seek(0)
+    return send_file(archivo, as_attachment=True, download_name=f"deudas-{filtros['pestana']}-{date.today():%Y-%m-%d}.xlsx",
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
 @bp.route("/proveedores", methods=["GET", "POST"])

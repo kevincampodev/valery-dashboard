@@ -1,69 +1,243 @@
 {% extends "base.html" %}
-{% from "_macros.html" import badge_estado %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h2>Deudas</h2>
-  <div>
-    <a href="{{ url_for('deudas.proveedores') }}" class="btn btn-outline-secondary"><i class="bi bi-building"></i> Proveedores</a>
-    <a href="{{ url_for('deudas.cartera') }}" class="btn btn-outline-secondary"><i class="bi bi-hourglass-split"></i> Cartera por edades</a>
-    <a href="{{ url_for('deudas.importar') }}" class="btn btn-outline-primary"><i class="bi bi-file-earmark-zip"></i> Importar DIAN</a>
-    <a href="{{ url_for('deudas.formulario') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nueva factura</a>
+{% macro vence(x) %}
+  {% if x.saldo == 0 %}
+    {% if x.contado %}<span class="chip chip-pagada">De contado</span>
+    {% elif x.retraso is not none and x.retraso > 0 %}<span class="chip chip-por-vencer">Pagada {{ x.retraso }} día{{ '' if x.retraso == 1 else 's' }} tarde</span>
+    {% else %}<span class="chip chip-pagada">Pagada a tiempo</span>{% endif %}
+  {% elif x.dias < 0 %}
+    <span class="chip chip-vencida">Vencida hace {{ -x.dias }} día{{ '' if x.dias == -1 else 's' }}</span>
+  {% elif x.dias == 0 %}<span class="chip chip-por-vencer">Vence hoy</span>
+  {% elif x.dias <= 7 %}<span class="chip chip-por-vencer">Vence en {{ x.dias }} día{{ '' if x.dias == 1 else 's' }}</span>
+  {% else %}<span class="chip chip-al-dia">En {{ x.dias }} días</span>{% endif %}
+{% endmacro %}
+{% macro filas_tabla(lista, con_proveedor=True) %}
+  {% for x in lista %}
+  <tr class="fila-deuda fila-{{ x.estado|replace(' ', '-')|replace('í', 'i') }}" data-buscar="{{ x.buscar }}"
+      data-total="{{ x.total }}" data-abonado="{{ x.abonado }}" data-saldo="{{ x.saldo }}"
+      onclick="location.href='{{ url_for('deudas.detalle', id=x.id) }}'">
+    <td class="c-factura">
+      {% if con_proveedor %}<div class="deuda-proveedor">{{ x.proveedor }}</div>{% endif %}
+      <div class="deuda-numero">
+        <a href="{{ url_for('deudas.detalle', id=x.id) }}" onclick="event.stopPropagation()">{{ x.numero }}</a>
+        {% if x.etiqueta %}<span class="badge text-bg-info">{{ x.etiqueta }}</span>{% endif %}
+        <span class="deuda-emision">· emitida {{ x.emision.strftime('%d/%m/%Y') }}</span>
+      </div>
+    </td>
+    <td class="c-vence">
+      <div class="deuda-fecha">{{ x.limite.strftime('%d/%m/%Y') }}</div>
+      {% if x.original %}<div class="deuda-pactada" title="Fecha acordada con el proveedor">Pactada · original {{ x.original.strftime('%d/%m/%Y') }}</div>{% endif %}
+      {{ vence(x) }}
+    </td>
+    <td class="c-pagado">
+      {% if x.saldo == 0 %}
+        <div class="deuda-pagada-el">{% if x.fecha_pago %}Pagada el {{ x.fecha_pago.strftime('%d/%m/%Y') }}{% else %}Pagada{% endif %}</div>
+        <div class="deuda-sub">{{ x.total|pesos }}{% if x.n_abonos > 1 %} en {{ x.n_abonos }} abonos{% endif %}</div>
+      {% elif not x.abonado %}
+        <div class="deuda-sub">Sin abonos · total {{ x.total|pesos }}</div>
+      {% else %}
+        <div class="deuda-sub"><strong class="text-body">{{ x.abonado|pesos }}</strong> de {{ x.total|pesos }} · <strong class="texto-sube">{{ x.porcentaje }}%</strong></div>
+        <div class="pagado-pista" title="{{ x.porcentaje }}% pagado"><div class="barra-relleno pagado-relleno" style="--ancho: {{ x.porcentaje }}%"></div></div>
+      {% endif %}
+    </td>
+    <td class="c-saldo text-end">
+      {% if x.saldo %}<span class="deuda-saldo{{ ' text-peligro' if x.estado == 'vencida' }}">{{ x.saldo|pesos }}</span>
+      {% else %}<span class="deuda-cero">—</span>{% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+{% endmacro %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h2 class="mb-0">Deudas</h2>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{{ url_for('deudas.proveedores') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-building"></i> Proveedores</a>
+    <a href="{{ url_for('deudas.cartera') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-hourglass-split"></i> Cartera por edades</a>
+    <a href="{{ url_for('deudas.importar') }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-file-earmark-zip"></i> Importar DIAN</a>
+    <a href="{{ url_for('deudas.formulario') }}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Nueva factura</a>
   </div>
 </div>
 
-<form class="row g-2 mb-3" method="get">
-  <div class="col-md-4">
-    <select name="proveedor" class="form-select" onchange="this.form.submit()">
-      <option value="">Todos los proveedores</option>
-      {% for p in proveedores %}
-      <option value="{{ p.id }}" {% if p.id == proveedor_id %}selected{% endif %}>{{ p.nombre }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div class="col-md-3">
-    <select name="estado" class="form-select" onchange="this.form.submit()">
-      <option value="">Todos los estados</option>
-      {% for e in ['vencida', 'por vencer', 'al día', 'pagada'] %}
-      <option value="{{ e }}" {% if e == estado %}selected{% endif %}>{{ e|capitalize }}</option>
-      {% endfor %}
-    </select>
-  </div>
-</form>
-
-<div class="table-responsive">
-<table class="table table-hover align-middle">
-  <thead class="table-light">
-    <tr><th>Proveedor</th><th>Factura</th><th>Emisión</th><th>Fecha límite</th>
-        <th class="text-end">Total</th><th class="text-end">Saldo</th><th>Estado</th></tr>
-  </thead>
-  <tbody>
-    {% for f in facturas %}
-    <tr onclick="location.href='{{ url_for('deudas.detalle', id=f.id) }}'" style="cursor:pointer">
-      <td>{{ f.proveedor.nombre }}</td>
-      <td>{{ f.numero }} {% if f.etiqueta %}<small class="badge bg-info text-dark">{{ f.etiqueta }}</small>{% endif %}</td>
-      <td>{{ f.fecha_emision.strftime('%d/%m/%Y') }}</td>
-      <td>{{ f.fecha_limite.strftime('%d/%m/%Y') }}
-        {% if f.fecha_pactada %}<i class="bi bi-hand-thumbs-up text-primary" title="Fecha pactada"></i>{% endif %}
-        {% if f.saldo and f.dias_para_vencer < 0 %}<br><small class="text-danger">{{ -f.dias_para_vencer }} días vencida</small>{% endif %}
-      </td>
-      <td class="text-end">{{ f.total|pesos }}</td>
-      <td class="text-end fw-bold">{{ f.saldo|pesos }}
-        {% if f.abonado and f.saldo %}
-        <div class="progress mt-1" style="height:4px" title="{{ f.porcentaje_pagado }}% pagado">
-          <div class="progress-bar bg-success" style="width: {{ f.porcentaje_pagado }}%"></div>
-        </div>
-        {% endif %}
-      </td>
-      <td>{{ badge_estado(f.estado) }}</td>
-    </tr>
-    {% else %}
-    <tr><td colspan="7" class="text-center text-muted py-4">No hay facturas registradas.</td></tr>
+{# ---------- Resumen ---------- #}
+<div class="card card-body mb-3 aparecer" style="--i: 1">
+  <div class="resumen-deuda">
+    <div class="resumen-principal">
+      <span class="kpi-titulo">Debes en total</span>
+      <div class="resumen-valor" data-contar="{{ resumen.deuda }}" data-formato="pesos">{{ resumen.deuda|pesos }}</div>
+      <span class="text-muted small">{{ resumen.numero }} factura{{ '' if resumen.numero == 1 else 's' }} pendiente{{ '' if resumen.numero == 1 else 's' }} con {{ resumen.proveedores }} proveedor{{ '' if resumen.proveedores == 1 else 'es' }}</span>
+    </div>
+    {% for t in resumen.tramos %}
+    <a href="{{ url_con(ver='vencidas', estado='') if t.estado == 'vencida' else url_con(ver='pendientes', estado=t.estado) }}" class="resumen-dato dato-{{ t.estado|replace(' ', '-')|replace('í', 'i') }}">
+      <span class="resumen-etiqueta"><i class="punto"></i>{{ t.nombre }}</span>
+      <strong>{{ t.valor|pesos }}</strong>
+      <small>{{ t.numero }} factura{{ '' if t.numero == 1 else 's' }}</small>
+    </a>
     {% endfor %}
-  </tbody>
-  <tfoot><tr class="table-light">
-    <th colspan="5" class="text-end">Saldo total</th>
-    <th class="text-end text-danger">{{ total_saldo|pesos }}</th><th></th>
-  </tr></tfoot>
-</table>
+    <a href="{{ url_for('abonos.index') }}" class="resumen-dato dato-abonado">
+      <span class="resumen-etiqueta"><i class="bi bi-check2-circle"></i> Abonado este mes</span>
+      <strong>{{ abonado_mes|pesos }}</strong>
+      <small>{{ n_abonos_mes }} abono{{ '' if n_abonos_mes == 1 else 's' }}</small>
+    </a>
+  </div>
+  {% if resumen.deuda %}
+  <div class="reparto" role="img" aria-label="Reparto de la deuda: {% for t in resumen.tramos %}{{ t.nombre }} {{ t.porcentaje }}%{{ ', ' if not loop.last }}{% endfor %}">
+    {% for t in resumen.tramos if t.valor %}
+    <a href="{{ url_con(ver='vencidas', estado='') if t.estado == 'vencida' else url_con(ver='pendientes', estado=t.estado) }}"
+       class="reparto-tramo tramo-{{ t.estado|replace(' ', '-')|replace('í', 'i') }}" style="--ancho: {{ t.porcentaje }}%"
+       title="{{ t.nombre }}: {{ t.valor|pesos }} ({{ t.porcentaje|round|int }}%)"></a>
+    {% endfor %}
+  </div>
+  {% endif %}
 </div>
+
+{# ---------- Pestañas, vista y filtros ---------- #}
+<div class="barra-filtros mb-2">
+  <nav class="segmentado" aria-label="Qué facturas ver">
+    {% for clave, nombre in pestanas.items() %}
+    <a href="{{ url_con(ver=clave, estado='') }}" class="{{ 'activo' if f.pestana == clave }}" {% if f.pestana == clave %}aria-current="page"{% endif %}>
+      {{ nombre }} <span class="segmentado-n">{{ conteos[clave] }}</span>
+    </a>
+    {% endfor %}
+  </nav>
+  <nav class="segmentado segmentado-iconos" aria-label="Cómo verlas">
+    <a href="{{ url_con(vista='') }}" class="{{ 'activo' if f.vista == 'facturas' }}" title="Ver por factura"><i class="bi bi-list-ul"></i> Facturas</a>
+    <a href="{{ url_con(vista='proveedores') }}" class="{{ 'activo' if f.vista == 'proveedores' }}" title="Agrupar por proveedor"><i class="bi bi-building"></i> Por proveedor</a>
+  </nav>
+</div>
+
+<form class="filtros-deuda mb-3" method="get" id="filtrosDeuda">
+  <input type="hidden" name="ver" value="{{ f.pestana }}">
+  {% if f.vista == 'proveedores' %}<input type="hidden" name="vista" value="proveedores">{% endif %}
+  <div class="campo-buscar">
+    <i class="bi bi-search"></i>
+    <input type="search" name="q" value="{{ f.texto }}" class="form-control" placeholder="Buscar factura, proveedor o etiqueta…" id="buscarDeuda" autocomplete="off">
+  </div>
+  <select name="proveedor" class="form-select" onchange="this.form.submit()" aria-label="Proveedor">
+    <option value="">Todos los proveedores</option>
+    {% for p in proveedores %}<option value="{{ p.id }}" {% if p.id == f.proveedor_id %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}
+  </select>
+  <select name="mes" class="form-select" onchange="this.form.submit()" aria-label="Mes de emisión">
+    <option value="">Mes de emisión</option>
+    {% set nombres_mes = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'] %}
+    {% for m in meses %}<option value="{{ m }}" {% if m == f.mes %}selected{% endif %}>{{ nombres_mes[m[5:]|int - 1]|capitalize }} {{ m[:4] }}</option>{% endfor %}
+  </select>
+  {% if f.estado %}
+  <select name="estado" class="form-select" onchange="this.form.submit()" aria-label="Estado">
+    <option value="">Cualquier estado</option>
+    {% for e in estados %}<option value="{{ e }}" {% if e == f.estado %}selected{% endif %}>{{ e|capitalize }}</option>{% endfor %}
+  </select>
+  {% endif %}
+  <a href="{{ excel }}" class="btn btn-outline-secondary btn-excel"><i class="bi bi-file-earmark-excel"></i> Descargar Excel</a>
+</form>
+{% if f.texto or f.proveedor_id or f.mes or f.estado %}
+<div class="filtros-activos mb-3">
+  Filtrando{% if f.estado %} <span class="chip chip-al-dia">{{ f.estado|capitalize }}</span>{% endif %}{% if f.texto %} por “{{ f.texto }}”{% endif %}.
+  <a href="{{ url_for('deudas.index', ver=f.pestana, vista=f.vista if f.vista == 'proveedores' else None) }}">Quitar filtros</a>
+</div>
+{% endif %}
+
+{% if f.vista == 'proveedores' %}
+{# ---------- Por proveedor ---------- #}
+<div class="lista-proveedores">
+  {% for g in grupos %}
+  <details class="card proveedor-deuda aparecer" style="--i: {{ loop.index + 1 }}" data-buscar="{{ g.facturas|map(attribute='buscar')|join(' ') }}">
+    <summary>
+      <div class="pd-nombre">
+        <strong>{{ g.nombre }}</strong>
+        <small class="text-muted">{{ g.facturas|length }} factura{{ '' if g.facturas|length == 1 else 's' }}{% if g.pendientes %} · {{ g.pendientes }} pendiente{{ '' if g.pendientes == 1 else 's' }}{% endif %}</small>
+      </div>
+      <div class="pd-estado">
+        {% if g.mas_vencida is none %}<span class="chip chip-pagada">Al día con él</span>
+        {% elif g.mas_vencida < 0 %}<span class="chip chip-vencida">La más vieja: hace {{ -g.mas_vencida }} días</span>
+        {% elif g.mas_vencida <= 7 %}<span class="chip chip-por-vencer">Próxima en {{ g.mas_vencida }} días</span>
+        {% else %}<span class="chip chip-al-dia">Próxima en {{ g.mas_vencida }} días</span>{% endif %}
+      </div>
+      <div class="pd-pagado">
+        <div class="pagado-pista"><div class="barra-relleno pagado-relleno" style="--ancho: {{ g.porcentaje }}%"></div></div>
+        <small class="text-muted">{{ g.porcentaje }}% pagado de {{ g.total|pesos }}</small>
+      </div>
+      <div class="pd-saldo">{% if g.saldo %}<strong class="{{ 'text-peligro' if g.estado == 'vencida' }}">{{ g.saldo|pesos }}</strong>{% else %}<span class="deuda-cero">—</span>{% endif %}</div>
+      <i class="bi bi-chevron-down pd-flecha"></i>
+    </summary>
+    <table class="table tabla-deudas mb-0"><tbody>{{ filas_tabla(g.facturas, False) }}</tbody></table>
+  </details>
+  {% else %}
+  <div class="card card-body text-center text-muted">No hay facturas con estos filtros.</div>
+  {% endfor %}
+</div>
+
+{% else %}
+{# ---------- Facturas ---------- #}
+<div class="card tabla-card aparecer" style="--i: 2">
+  <table class="table table-hover align-middle mb-0 tabla-deudas">
+    <thead><tr>
+      <th>Factura</th><th>Vence</th><th>Pagado</th><th class="text-end">Saldo</th>
+    </tr></thead>
+    <tbody id="cuerpoDeudas">
+      {{ filas_tabla(filas) }}
+      <tr class="fila-vacia" {% if filas %}hidden{% endif %}><td colspan="4" class="text-center text-muted py-4">
+        {% if f.pestana == 'vencidas' and not (f.texto or f.proveedor_id or f.mes) %}No hay facturas vencidas. 👌{% else %}No hay facturas con estos filtros.{% endif %}
+      </td></tr>
+    </tbody>
+    <tfoot><tr>
+      <td><span id="totNumero">{{ totales.numero }}</span> factura<span id="totPlural">{{ '' if totales.numero == 1 else 's' }}</span></td>
+      <td colspan="2" class="tot-detalle">Facturado <strong id="totTotal">{{ totales.total|pesos }}</strong> · Abonado <strong id="totAbonado">{{ totales.abonado|pesos }}</strong></td>
+      <td class="text-end">Saldo <strong id="totSaldo" class="d-block deuda-saldo">{{ totales.saldo|pesos }}</strong></td>
+    </tr></tfoot>
+  </table>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+  const reducir = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const pesos = v => '$' + Math.round(v).toLocaleString('es-CO');
+
+  // Número grande que sube de 0 a su valor
+  document.querySelectorAll('[data-contar]').forEach(el => {
+    const final = Number(el.dataset.contar);
+    if (reducir || !final) { el.textContent = pesos(final); return; }
+    const inicio = performance.now();
+    const paso = t => { const p = Math.min((t - inicio) / 900, 1); el.textContent = pesos(final * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(paso); };
+    requestAnimationFrame(paso);
+  });
+
+  // Barras: se llenan al aparecer
+  const barras = document.querySelectorAll('.barra-relleno, .reparto-tramo');
+  if (reducir || !('IntersectionObserver' in window)) barras.forEach(b => b.classList.add('lleno'));
+  else {
+    const obs = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('lleno'); obs.unobserve(e.target); } }));
+    barras.forEach(b => obs.observe(b));
+  }
+  // Al abrir un proveedor, sus barras también se llenan
+  document.querySelectorAll('details.proveedor-deuda').forEach(d => d.addEventListener('toggle', () => {
+    if (d.open) d.querySelectorAll('.barra-relleno').forEach(b => b.classList.add('lleno'));
+  }));
+
+  // Búsqueda mientras escribes (Enter también la guarda en la dirección para el Excel)
+  const campo = document.getElementById('buscarDeuda');
+  const sinTildes = t => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const filtrar = () => {
+    const t = sinTildes(campo.value.trim());
+    let n = 0, total = 0, abonado = 0, saldo = 0;
+    document.querySelectorAll('#cuerpoDeudas .fila-deuda').forEach(fila => {
+      const ver = !t || fila.dataset.buscar.includes(t);
+      fila.hidden = !ver;
+      if (ver) { n++; total += +fila.dataset.total; abonado += +fila.dataset.abonado; saldo += +fila.dataset.saldo; }
+    });
+    document.querySelectorAll('details.proveedor-deuda').forEach(d => { d.hidden = t && !d.dataset.buscar.includes(t); });
+    const vacia = document.querySelector('#cuerpoDeudas .fila-vacia');
+    if (vacia) vacia.hidden = n > 0;
+    const pon = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    pon('totNumero', n); pon('totPlural', n === 1 ? '' : 's');
+    pon('totTotal', pesos(total)); pon('totAbonado', pesos(abonado)); pon('totSaldo', pesos(saldo));
+    // el Excel descarga lo mismo que estás viendo
+    const excel = document.querySelector('.btn-excel');
+    if (excel) { const u = new URL(excel.href); campo.value.trim() ? u.searchParams.set('q', campo.value.trim()) : u.searchParams.delete('q'); excel.href = u; }
+  };
+  if (campo) campo.addEventListener('input', filtrar);
+})();
+</script>
 {% endblock %}
