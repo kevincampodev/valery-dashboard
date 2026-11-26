@@ -1,111 +1,344 @@
 {% extends "base.html" %}
 {% block content %}
-{% set dias_semana = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+{% macro cambio(valor, texto='') %}
+  {% if valor is none %}<span class="cambio cambio-neutro">sin datos para comparar</span>
+  {% elif valor >= 0 %}<span class="cambio cambio-sube" title="{{ texto }}">▲ {{ valor }}%</span>
+  {% else %}<span class="cambio cambio-baja" title="{{ texto }}">▼ {{ valor|abs }}%</span>{% endif %}
+{% endmacro %}
+{% macro barras(filas, color='detal', mostrar_numero=True, maximo=None) %}
+  {% set tope = maximo or (filas|map(attribute='valor')|max if filas else 1) %}
+  {% for f in filas %}
+  <div class="barra-fila aparecer" style="--i: {{ loop.index }}">
+    <div class="barra-texto">
+      <span class="barra-nombre">{{ f.nombre }}</span>
+      <span class="barra-valor">{{ f.valor|pesos }}<small>{{ f.porcentaje }}%{% if mostrar_numero and f.numero is not none %} · {{ f.numero }} venta{{ '' if f.numero == 1 else 's' }}{% endif %}</small></span>
+    </div>
+    <div class="barra-pista"><div class="barra-relleno barra-{{ color }}" style="--ancho: {{ [(f.valor * 100 / tope)|round(1) if tope > 0 else 0, 1]|max }}%"></div></div>
+  </div>
+  {% endfor %}
+{% endmacro %}
+{% set comparado = ('vs. 1–' ~ corte_ant.day ~ ' de ' ~ mes_anterior.split()[0]|lower) if corte_ant else '' %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">
   <div class="d-flex align-items-center gap-2">
-    <a href="{{ url_for('ventas.index', mes=anterior) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-left"></i></a>
+    <a href="{{ url_for('ventas.index', mes=anterior) }}" class="btn btn-outline-secondary btn-sm" aria-label="Mes anterior">‹</a>
     <h2 class="mb-0">Ventas · {{ titulo }}</h2>
-    <a href="{{ url_for('ventas.index', mes=siguiente) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-right"></i></a>
+    <a href="{{ url_for('ventas.index', mes=siguiente) }}" class="btn btn-outline-secondary btn-sm" aria-label="Mes siguiente">›</a>
   </div>
-  <div>
-    <a href="{{ url_for('ventas.vendedoras') }}" class="btn btn-outline-secondary"><i class="bi bi-person-badge"></i> Vendedoras</a>
-    <a href="{{ url_for('ventas.dia', fecha=hoy.isoformat()) }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Registrar ventas de hoy</a>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('ventas.vendedoras') }}" class="btn btn-outline-secondary">Vendedoras</a>
+    <a href="{{ url_for('ventas.dia', fecha=hoy.isoformat()) }}" class="btn btn-primary">+ Registrar ventas de hoy</a>
   </div>
 </div>
+<p class="text-muted mb-4">
+  {% if corte %}Ventas cargadas hasta el {{ dias_semana[corte.weekday()]|lower }} {{ corte.strftime('%d/%m') }}{% if corte_ant %} · los porcentajes comparan contra los mismos días de {{ mes_anterior|lower }}{% endif %}.
+  {% else %}Todavía no hay ventas cargadas en este mes.{% endif %}
+</p>
 
-<div class="row g-3 mb-4">
-  <div class="col-md-3">
-    <div class="card card-body border-start border-4 border-success shadow-sm">
-      <small class="text-muted">Ventas netas del mes</small>
-      <h4 class="text-success mb-0">{{ r.total|pesos }}</h4>
-      <small class="text-muted">Devoluciones: {{ r.devoluciones|pesos }}</small>
-    </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card card-body border-start border-4 border-primary shadow-sm">
-      <small class="text-muted">Promedio por día</small>
-      <h4 class="text-primary mb-0">{{ r.promedio_diario|pesos }}</h4>
-      <small class="text-muted">{{ r.dias_registrados }} días registrados</small>
-    </div>
-  </div>
-  {% for c in canales %}
-  <div class="col-md-3">
-    <div class="card card-body border-start border-4 border-info shadow-sm">
-      <small class="text-muted">{{ c }}</small>
-      <h4 class="mb-0">{{ r.por_canal.get(c, 0)|pesos }}</h4>
-      <small class="text-muted">
-        {% if r.total %}{{ (r.por_canal.get(c, 0) * 100 / r.total)|round|int }}% del total{% else %}&nbsp;{% endif %}
-      </small>
-    </div>
-  </div>
-  {% endfor %}
-</div>
-
-<div class="card card-body shadow-sm mb-4">
-  <h6>Ventas por día</h6>
-  <div style="height:260px"><canvas id="grafVentas"></canvas></div>
-</div>
-
-<div class="row g-3 mb-4">
-  {% for titulo_tabla, datos in [('Por vendedora', r.por_vendedora), ('Por medio de pago', r.por_medio), ('Por medio de contacto', r.por_contacto)] %}
-  <div class="col-md-4">
-    <div class="card card-body shadow-sm h-100">
-      <h6>{{ titulo_tabla }}</h6>
-      <table class="table table-sm mb-0">
-        {% for nombre, valor in datos.items() %}
-        <tr><td>{{ nombre }}</td><td class="text-end fw-bold">{{ valor|pesos }}</td></tr>
-        {% else %}
-        <tr><td class="text-muted">Sin datos este mes.</td></tr>
-        {% endfor %}
-      </table>
+{# ---------- Tarjetas ---------- #}
+<div class="row g-3 mb-3">
+  {% set tarjetas = [
+      ('Ventas netas', actual.neto, 'pesos', cambios.neto, 'neto', 'Promedio ' ~ (r.promedio_diario|pesos) ~ ' por día'),
+      ('Ventas realizadas', actual.numero, 'numero', cambios.numero, 'numero', (("{:,}".format(actual.prendas)|replace(',', '.')) ~ ' prendas vendidas')),
+      ('Al detal', actual.minorista, 'pesos', cambios.minorista, 'minorista', ((actual.minorista * 100 / actual.neto)|round|int if actual.neto else 0) ~ '% del total'),
+      ('Al por mayor', actual.mayorista, 'pesos', cambios.mayorista, 'mayorista', ((actual.mayorista * 100 / actual.neto)|round|int if actual.neto else 0) ~ '% del total'),
+  ] %}
+  {% for titulo_t, valor, formato, var, serie, nota in tarjetas %}
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="card card-body shadow-sm h-100 tarjeta-kpi aparecer" style="--i: {{ loop.index }}">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <span class="kpi-titulo">{{ titulo_t }}</span>
+        {{ cambio(var, comparado) }}
+      </div>
+      <div class="kpi-valor" data-contar="{{ valor }}" data-formato="{{ formato }}">{{ valor|pesos if formato == 'pesos' else ("{:,}".format(valor)|replace(',', '.')) }}</div>
+      <div class="d-flex justify-content-between align-items-end gap-2">
+        <small class="text-muted">{{ nota }}</small>
+        <canvas class="sparkline" data-serie="{{ serie }}" width="96" height="28" aria-hidden="true"></canvas>
+      </div>
     </div>
   </div>
   {% endfor %}
 </div>
 
-<div class="card card-body shadow-sm">
-  <h6>Detalle diario</h6>
-  <div class="table-responsive">
+{# ---------- Meta del mes ---------- #}
+<div class="card card-body shadow-sm mb-4 aparecer" style="--i: 5">
+  {% if meta and avance %}
+  {% set colores_estado = {'cumplida': 'success', 'en camino': 'success', 'en riesgo': 'warning', 'atrasada': 'danger', 'no cumplida': 'danger', 'por iniciar': 'secondary'} %}
+  <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-2 mb-2">
+    <div>
+      <span class="kpi-titulo">Meta del mes</span>
+      <span class="badge text-bg-{{ colores_estado.get(avance.estado, 'secondary') }} ms-2">{{ avance.estado|capitalize }}</span>
+    </div>
+    <div class="text-muted small">{{ avance.vendido|pesos }} de <strong class="text-body">{{ avance.meta|pesos }}</strong></div>
+  </div>
+  <div class="meta-pista" role="progressbar" aria-valuenow="{{ avance.porcentaje }}" aria-valuemin="0" aria-valuemax="100" aria-label="Avance de la meta">
+    <div class="meta-relleno" style="--ancho: {{ [avance.porcentaje, 100]|min }}%"></div>
+    <span class="meta-porcentaje" data-contar="{{ avance.porcentaje }}" data-formato="porcentaje">{{ avance.porcentaje }}%</span>
+  </div>
+  <div class="row g-2 mt-2 small">
+    {% if avance.faltante %}
+    <div class="col-md-4"><span class="text-muted">Faltan</span> <strong>{{ avance.faltante|pesos }}</strong></div>
+    <div class="col-md-4"><span class="text-muted">Toca vender</span> <strong>{{ avance.ritmo_necesario|pesos }} por día</strong> <span class="text-muted">en los {{ avance.dias_restantes }} días que quedan</span></div>
+    {% else %}
+    <div class="col-md-8"><strong class="text-success">Meta cumplida.</strong> <span class="text-muted">Van {{ (avance.vendido - avance.meta)|pesos }} por encima.</span></div>
+    {% endif %}
+    {% if cierre %}<div class="col-md-4"><span class="text-muted">A este ritmo cierras en</span> <strong>~{{ cierre|pesos }}</strong></div>{% endif %}
+  </div>
+  {% else %}
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div><span class="kpi-titulo">Meta del mes</span>
+      <div class="text-muted small">No hay meta definida para {{ titulo|lower }}.{% if cierre %} A este ritmo el mes cierra en ~{{ cierre|pesos }}.{% endif %}</div></div>
+    <a href="{{ url_for('metas.index') }}" class="btn btn-sm btn-outline-primary">Definir meta</a>
+  </div>
+  {% endif %}
+</div>
+
+{# ---------- Ventas por día ---------- #}
+<div class="card card-body shadow-sm mb-4 aparecer" style="--i: 6">
+  <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-2 mb-1">
+    <h5 class="mb-0">Ventas por día</h5>
+    <div class="leyenda small">
+      <span><i class="punto punto-detal"></i>Al detal</span>
+      <span><i class="punto punto-mayor"></i>Al por mayor</span>
+      <span><i class="linea-prom"></i>Promedio diario</span>
+    </div>
+  </div>
+  <p class="small text-muted mb-2">Pasa el mouse sobre un día para ver el detalle; haz clic para abrir sus ventas. Domingos y festivos van más claros.</p>
+  <div style="height:300px"><canvas id="grafDias" role="img" aria-label="Ventas por día del mes, al detal y al por mayor"></canvas></div>
+</div>
+
+<div class="row g-3 mb-4">
+  {# ---------- Acumulado ---------- #}
+  <div class="col-lg-8">
+    <div class="card card-body shadow-sm h-100 aparecer" style="--i: 7">
+      <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-2 mb-2">
+        <h5 class="mb-0">Acumulado del mes</h5>
+        <div class="leyenda small">
+          <span><i class="linea-solida"></i>{{ titulo.split()[0] }}</span>
+          <span><i class="linea-gris"></i>{{ mes_anterior.split()[0] }}</span>
+          {% if meta %}<span><i class="linea-meta"></i>Meta</span>{% endif %}
+          {% if cierre %}<span><i class="linea-proy"></i>Proyección</span>{% endif %}
+        </div>
+      </div>
+      <div style="height:330px"><canvas id="grafAcumulado" role="img" aria-label="Ventas acumuladas del mes frente al mes anterior y la meta"></canvas></div>
+    </div>
+  </div>
+  {# ---------- Calendario de calor ---------- #}
+  <div class="col-lg-4">
+    <div class="card card-body shadow-sm h-100 aparecer" style="--i: 8">
+      <h5 class="mb-1">Calendario</h5>
+      <p class="small text-muted mb-2">Más oscuro, más vendido. Clic para abrir el día.</p>
+      <div class="calendario">
+        {% for d in dias_semana %}<div class="cal-cabecera">{{ d[0] }}</div>{% endfor %}
+        {% for semana in semanas %}{% for f in semana %}
+          {% if f %}{% set d = dias[f] %}
+          {% set nivel = 0 if (not d.neto or not maximo_dia or d.neto < 0) else ((d.neto * 4 / maximo_dia)|round(0, 'ceil')|int) %}
+          <a href="{{ url_for('ventas.dia', fecha=f.isoformat()) }}" class="cal-dia nivel-{{ nivel }}{{ ' cal-festivo' if d.festivo }}{{ ' cal-hoy' if f == hoy }}"
+             title="{{ dias_semana[f.weekday()] }} {{ f.strftime('%d/%m') }}{{ ' · festivo' if d.festivo }}: {{ d.neto|pesos }} · {{ d.numero }} ventas">{{ f.day }}</a>
+          {% else %}<span class="cal-vacio"></span>{% endif %}
+        {% endfor %}{% endfor %}
+      </div>
+      <div class="cal-escala small text-muted mt-2">
+        <span>Menos</span>{% for n in range(5) %}<i class="cal-muestra nivel-{{ n }}"></i>{% endfor %}<span>Más</span>
+        <span class="ms-auto"><i class="cal-muestra cal-festivo-muestra"></i> Festivo</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ---------- Rankings ---------- #}
+<div class="row g-3 mb-4">
+  <div class="col-lg-4">
+    <div class="card card-body shadow-sm h-100 aparecer" style="--i: 9">
+      <h5 class="mb-3">Por vendedora</h5>
+      {{ barras(vendedoras) }}
+      {% if vendedoras_aparte %}
+      <div class="separador-suave">Aparte</div>
+      {{ barras(vendedoras_aparte, 'gris', True, (vendedoras + vendedoras_aparte)|map(attribute='valor')|max) }}
+      {% endif %}
+      {% if not vendedoras and not vendedoras_aparte %}<p class="text-muted small mb-0">Sin ventas este mes.</p>{% endif %}
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card card-body shadow-sm h-100 aparecer" style="--i: 10">
+      <h5 class="mb-1">Por medio de pago</h5>
+      <p class="small text-muted mb-3">Los pagos mixtos se reparten entre sus medios. Las barras se comparan con el más alto.</p>
+      {{ barras(medios, 'detal', False) }}
+      {% if not medios %}<p class="text-muted small mb-0">Sin ventas este mes.</p>{% endif %}
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card card-body shadow-sm h-100 aparecer" style="--i: 11">
+      <h5 class="mb-3">Por medio de contacto</h5>
+      {{ barras(contactos, 'mayor') }}
+      {% for f in contactos_aparte %}
+      <div class="alerta-dato mt-3">
+        <strong>⚠ {{ f.porcentaje }}% sin dato</strong> · {{ f.valor|pesos }} en {{ f.numero }} ventas
+        <div class="small">No se anotó cómo llegó la clienta. Pedirlo en cada factura mejora el análisis de publicidad.</div>
+      </div>
+      {% endfor %}
+      {% if not contactos and not contactos_aparte %}<p class="text-muted small mb-0">Sin ventas este mes.</p>{% endif %}
+    </div>
+  </div>
+</div>
+
+{# ---------- Prendas más vendidas ---------- #}
+<div class="card card-body shadow-sm mb-4 aparecer" style="--i: 12">
+  <h5 class="mb-3">Prendas más vendidas</h5>
+  {% if top %}
+  {% set max_unidades = top[0][2] %}
+  <div class="row g-3">
+    {% for ref, descripcion, unidades, valor in top %}
+    <div class="col-6 col-md">
+      <div class="prenda-top">
+        <span class="prenda-puesto">{{ loop.index }}</span>
+        <div class="prenda-ref">{{ ref }}</div>
+        <div class="small text-muted text-truncate">{{ descripcion or '—' }}</div>
+        <div class="prenda-unidades"><strong>{{ unidades }}</strong> unidades · {{ valor|pesos }}</div>
+        <div class="barra-pista mt-1"><div class="barra-relleno barra-detal" style="--ancho: {{ (unidades * 100 / max_unidades)|round|int }}%"></div></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}<p class="text-muted small mb-0">Este mes no hay prendas registradas en las ventas.</p>{% endif %}
+</div>
+
+{# ---------- Detalle diario ---------- #}
+<details class="card card-body shadow-sm detalle-diario">
+  <summary><h5 class="d-inline mb-0">Detalle diario</h5> <span class="small text-muted">(tabla con todos los días)</span></summary>
+  <div class="table-responsive mt-3">
   <table class="table table-sm table-hover align-middle mb-0">
-    <thead class="table-light">
-      <tr><th>Día</th>{% for c in canales %}<th class="text-end">{{ c }}</th>{% endfor %}<th class="text-end">Devoluciones</th><th class="text-end">Neto</th></tr>
-    </thead>
+    <thead><tr><th>Día</th><th class="text-end">Al detal</th><th class="text-end">Al por mayor</th><th class="text-end">Ventas</th><th class="text-end">Prendas</th><th class="text-end">Neto</th></tr></thead>
     <tbody>
-      {% for fecha, d in r.por_dia.items() %}
-      <tr onclick="location.href='{{ url_for('ventas.dia', fecha=fecha.isoformat()) }}'" style="cursor:pointer"
-          class="{{ 'text-muted' if not d.neto and not d.devoluciones }}">
-        <td>{{ dias_semana[fecha.weekday()] }} {{ fecha.strftime('%d/%m') }}</td>
-        {% for c in canales %}<td class="text-end">{{ d.canales.get(c, 0)|pesos if d.canales.get(c) else '—' }}</td>{% endfor %}
-        <td class="text-end text-danger">{{ ('-' ~ d.devoluciones|pesos) if d.devoluciones else '—' }}</td>
+      {% for f, d in dias.items() %}
+      <tr onclick="location.href='{{ url_for('ventas.dia', fecha=f.isoformat()) }}'" style="cursor:pointer" class="{{ 'text-muted' if not d.neto }}">
+        <td>{{ dias_semana[f.weekday()] }} {{ f.strftime('%d/%m') }}{% if d.festivo %} <span class="badge text-bg-light">festivo</span>{% endif %}</td>
+        <td class="text-end">{{ d.minorista|pesos if d.minorista else '—' }}</td>
+        <td class="text-end">{{ d.mayorista|pesos if d.mayorista else '—' }}</td>
+        <td class="text-end">{{ d.numero or '—' }}</td>
+        <td class="text-end">{{ d.prendas or '—' }}</td>
         <td class="text-end fw-bold">{{ d.neto|pesos if d.neto else '—' }}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   </div>
-</div>
+</details>
 {% endblock %}
 
 {% block scripts %}
 <script>
-  const grafica = {{ grafica|tojson }};
-  const colores = { 'Minorista': '#0d6efd', 'Mayorista': '#20c997' };
-  new Chart(document.getElementById('grafVentas'), {
-    type: 'bar',
+(() => {
+  const g = {{ grafica|tojson }};
+  const reducir = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const css = getComputedStyle(document.documentElement);
+  const color = n => css.getPropertyValue(n).trim();
+  const DETAL = color('--serie-detal'), MAYOR = color('--serie-mayor'), GRIS = color('--serie-gris'), TINTA = color('--tinta-suave');
+  const pesos = v => '$' + Math.round(v).toLocaleString('es-CO');
+  const millones = v => '$' + (v / 1e6).toLocaleString('es-CO', { maximumFractionDigits: 1 }) + 'M';
+  const conAlfa = (hex, a) => hex + Math.round(a * 255).toString(16).padStart(2, '0');
+
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  Chart.defaults.color = TINTA;
+  if (reducir) Chart.defaults.animation = false;
+
+  // Números que suben de 0 a su valor
+  const formatos = { pesos, numero: v => Math.round(v).toLocaleString('es-CO'), porcentaje: v => Math.round(v) + '%' };
+  document.querySelectorAll('[data-contar]').forEach(el => {
+    const final = Number(el.dataset.contar), f = formatos[el.dataset.formato] || formatos.numero;
+    if (reducir || !final) { el.textContent = f(final); return; }
+    const inicio = performance.now(), dur = 900;
+    const paso = t => {
+      const p = Math.min((t - inicio) / dur, 1), e = 1 - Math.pow(1 - p, 3);
+      el.textContent = f(final * e);
+      if (p < 1) requestAnimationFrame(paso);
+    };
+    requestAnimationFrame(paso);
+  });
+
+  // Barras horizontales y meta: se llenan cuando aparecen en pantalla
+  const llenar = el => el.classList.add('lleno');
+  const rellenos = document.querySelectorAll('.barra-relleno, .meta-relleno');
+  if (reducir || !('IntersectionObserver' in window)) rellenos.forEach(llenar);
+  else {
+    const obs = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { llenar(e.target); obs.unobserve(e.target); } }), { threshold: 0.2 });
+    rellenos.forEach(el => obs.observe(el));
+  }
+
+  // Mini gráficas de las tarjetas (hasta el último día con datos)
+  const conDatos = g.dias.filter((d, i) => g.acumulado[i] !== null);
+  document.querySelectorAll('canvas.sparkline').forEach(c => {
+    const serie = c.dataset.serie;
+    new Chart(c, {
+      type: 'line',
+      data: { labels: conDatos.map(d => d.etiqueta), datasets: [{ data: conDatos.map(d => d[serie]),
+        borderColor: serie === 'mayorista' ? MAYOR : DETAL, borderWidth: 1.5, pointRadius: 0, tension: .35, fill: false }] },
+      options: { responsive: false, events: [], plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        scales: { x: { display: false }, y: { display: false } } },
+    });
+  });
+
+  // Ventas por día
+  const registrados = g.dias.filter(d => d.neto);
+  const promedio = registrados.length ? registrados.reduce((s, d) => s + d.neto, 0) / registrados.length : 0;
+  const apagado = d => d.domingo || d.festivo;
+  new Chart(document.getElementById('grafDias'), {
     data: {
-      labels: grafica.etiquetas,
-      datasets: Object.entries(grafica.series).map(([canal, valores]) => ({
-        label: canal, data: valores, backgroundColor: colores[canal] || '#6c757d',
-      })),
+      labels: g.dias.map(d => d.etiqueta),
+      datasets: [
+        { type: 'bar', label: 'Al detal', data: g.dias.map(d => d.minorista), stack: 'v',
+          backgroundColor: g.dias.map(d => apagado(d) ? conAlfa(DETAL, .45) : DETAL), borderRadius: 4, borderSkipped: 'start' },
+        { type: 'bar', label: 'Al por mayor', data: g.dias.map(d => d.mayorista), stack: 'v',
+          backgroundColor: g.dias.map(d => apagado(d) ? conAlfa(MAYOR, .45) : MAYOR), borderRadius: 4, borderSkipped: 'start' },
+        { type: 'line', label: 'Promedio diario', data: g.dias.map(() => promedio || null), borderColor: GRIS,
+          borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0, pointHitRadius: 0 },
+      ],
     },
     options: {
       maintainAspectRatio: false,
-      plugins: { tooltip: { callbacks: { label: c => c.dataset.label + ': $' + c.raw.toLocaleString('es-CO') } } },
-      scales: {
-        x: { stacked: true },
-        y: { stacked: true, ticks: { callback: v => '$' + (v / 1e6).toLocaleString('es-CO') + 'M' } },
+      interaction: { mode: 'index', intersect: false },
+      animation: reducir ? false : { duration: 700, delay: c => c.type === 'data' && c.datasetIndex < 2 ? c.dataIndex * 18 : 0, easing: 'easeOutCubic' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          filter: i => i.datasetIndex < 2,
+          callbacks: {
+            title: items => { const d = g.dias[items[0].dataIndex]; return `${d.semana} ${d.etiqueta}${d.festivo ? ' · festivo' : ''}`; },
+            label: c => `${c.dataset.label}: ${pesos(c.raw)}`,
+            footer: items => { const d = g.dias[items[0].dataIndex]; return [`Total: ${pesos(d.neto)}`, `${d.numero} ventas · ${d.prendas} prendas`]; },
+          },
+        },
       },
+      scales: {
+        x: { stacked: true, grid: { display: false },
+             ticks: { color: c => { const d = g.dias[c.index]; return d && apagado(d) ? GRIS : TINTA; } } },
+        y: { stacked: true, border: { display: false }, ticks: { callback: millones } },
+      },
+      onClick: (e, els) => { if (els.length) location.href = g.dias[els[0].index].url; },
+      onHover: (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
     },
   });
+
+  // Acumulado del mes
+  const ds = [
+    { label: 'Este mes', data: g.acumulado, borderColor: DETAL, backgroundColor: conAlfa(DETAL, .08), fill: 'origin', borderWidth: 2.5, pointRadius: 0, tension: .25 },
+    { label: g.nombre_anterior, data: g.anterior, borderColor: GRIS, borderWidth: 1.5, pointRadius: 0, tension: .25 },
+  ];
+  if (g.meta) ds.push({ label: 'Meta', data: g.meta, borderColor: TINTA, borderDash: [6, 5], borderWidth: 1.5, pointRadius: 0 });
+  if (g.proyeccion.some(v => v !== null)) ds.push({ label: 'Proyección', data: g.proyeccion, borderColor: DETAL, borderDash: [2, 4], borderWidth: 2, pointRadius: 0 });
+  new Chart(document.getElementById('grafAcumulado'), {
+    type: 'line',
+    data: { labels: g.dias.map(d => d.etiqueta), datasets: ds },
+    options: {
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      animation: reducir ? false : { duration: 1100, easing: 'easeOutQuart' },
+      plugins: { legend: { display: false },
+        tooltip: { filter: i => i.raw !== null, callbacks: { title: i => `Día ${i[0].label}`, label: c => `${c.dataset.label}: ${pesos(c.raw)}` } } },
+      scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 11 } },
+                y: { border: { display: false }, ticks: { callback: millones } } },
+    },
+  });
+})();
 </script>
 {% endblock %}
