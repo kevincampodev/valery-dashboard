@@ -2,33 +2,51 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{% block title %}Valery Dashboard{% endblock %}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
   <meta name="csrf-token" content="{{ csrf_token() }}">
+  <script>
+    // Antes de pintar: menú contraído si así lo dejó la última vez (evita que "salte" al cargar)
+    try { if (localStorage.getItem('menu-mini') === '1') document.documentElement.classList.add('menu-mini'); } catch (e) {}
+  </script>
 </head>
 <body>
-{% macro icono(nombre, clase='') %}<svg class="ico {{ clase }}" aria-hidden="true"><use href="{{ url_for('static', filename='img/iconos.svg') }}#{{ nombre }}"></use></svg>{% endmacro %}
+{% from "_macros.html" import icono %}
 {% macro marca() %}
   <a href="{{ url_for('dashboard.index') }}" class="marca" aria-label="Dany Fashion · Inicio">
     <img src="{{ url_for('static', filename='img/logo-dany-fashion.png') }}" alt="Dany Fashion — Disvalery Fashion Cali SAS">
   </a>
 {% endmacro %}
+{% set autenticado = current_user.is_authenticated %}
+{% set contadores = menu_contadores() if autenticado else {} %}
+{% macro enlace(s) %}
+  {% set activo = es_activo(s.endpoint) %}
+  {% set c = contadores.get(s.endpoint) %}
+  <li><a class="menu-enlace {{ 'activo' if activo }}" href="{{ url_for(s.endpoint) }}" title="{{ s.nombre }}" {% if activo %}aria-current="page"{% endif %}>
+    {{ icono(s.icono) }}<span class="menu-texto">{{ s.nombre }}</span>
+    {% if c %}<span class="contador contador-{{ c[1] }}" title="{{ c[2] }}">{{ c[0] }}</span>{% endif %}
+  </a></li>
+{% endmacro %}
 
-{# Barra superior: solo en celular, abre el menú #}
+{# Barra superior: solo en celular #}
 <header class="barra-movil d-lg-none">
   {{ marca() }}
-  <button class="btn-icono" type="button" data-bs-toggle="offcanvas" data-bs-target="#menuLateral" aria-label="Abrir menú">
-    {{ icono('menu') }}
-  </button>
+  {% if autenticado %}
+  <button class="btn-icono" type="button" data-abrir-buscador aria-label="Buscar">{{ icono('search') }}</button>
+  {% endif %}
 </header>
 
 <div class="d-lg-flex">
+  {% if autenticado %}
   <nav id="menuLateral" class="menu-lateral offcanvas-lg offcanvas-start" tabindex="-1" aria-label="Menú principal">
     <div class="menu-cabecera">
       {{ marca() }}
+      <button class="btn-icono d-none d-lg-inline-flex btn-contraer" type="button" id="contraerMenu" aria-label="Contraer menú" title="Contraer menú">
+        {{ icono('panel-left-close', 'ico-cerrar') }}{{ icono('panel-left-open', 'ico-abrir') }}
+      </button>
       <button class="btn-icono d-lg-none" type="button" data-bs-dismiss="offcanvas" data-bs-target="#menuLateral" aria-label="Cerrar menú">
         {{ icono('x') }}
       </button>
@@ -37,75 +55,67 @@
     <span class="aviso-base">Base de prueba: {{ config.DB_NAME }}</span>
     {% endif %}
 
-    {% set secciones = [
-      ('General', [
-        ('dashboard.index', 'layout-dashboard', 'Inicio'),
-      ]),
-      ('Ventas', [
-        ('ventas.index', 'shopping-bag', 'Ventas diarias'),
-        ('mayoristas.index', 'store', 'Mayoristas'),
-        ('clientes.index', 'contact-round', 'Clientes'),
-        ('metas.index', 'target', 'Metas'),
-        ('comisiones.index', 'users-round', 'Comisiones'),
-        ('marketing.index', 'megaphone', 'Publicidad'),
-      ]),
-      ('Redes sociales', [
-        ('redes.index', 'trending-up', 'Resumen de redes'),
-        ('redes.facturas', 'file-text', 'Facturas por redes'),
-      ]),
-      ('Finanzas', [
-        ('deudas.index', 'receipt-text', 'Deudas'),
-        ('abonos.index', 'hand-coins', 'Abonos'),
-        ('pagos.index', 'calendar-clock', 'Pagos pendientes'),
-        ('proyecciones.index', 'chart-line', 'Proyecciones'),
-      ]),
-      ('Administración', [
-        ('documentos.index', 'folder-open', 'Documentos'),
-        ('reportes.index', 'file-spreadsheet', 'Reportes'),
-        ('sistema.index', 'shield-check', 'Sistema'),
-      ]),
-    ] %}
-    <div class="menu-secciones">
-      {% for titulo, enlaces in secciones %}
-      {% set visibles = [] %}
-      {% for e in enlaces if puede_ver(e[0]) %}{% set _ = visibles.append(e) %}{% endfor %}
-      {% if visibles %}
-      <div class="menu-titulo">{{ titulo }}</div>
-      <ul class="menu-lista">
-        {% for endpoint, nombre_icono, nombre in visibles %}
-        {% set activo = request.endpoint == endpoint if endpoint.startswith('redes.') else request.blueprint == endpoint.split('.')[0] %}
-        <li><a class="menu-enlace {{ 'activo' if activo }}" href="{{ url_for(endpoint) }}" {% if activo %}aria-current="page"{% endif %}>
-          {{ icono(nombre_icono) }}<span>{{ nombre }}</span></a></li>
-        {% endfor %}
-      </ul>
+    <div class="menu-acciones">
+      <button type="button" class="menu-buscar" data-abrir-buscador title="Buscar (Ctrl + K)">
+        {{ icono('search') }}<span class="menu-texto">Buscar…</span><kbd class="menu-texto">Ctrl K</kbd>
+      </button>
+      {% if puede_ver('ventas.dia') %}
+      <a href="{{ url_for('ventas.dia', fecha=hoy_iso()) }}" class="menu-registrar" title="Registrar ventas de hoy">
+        {{ icono('plus') }}<span class="menu-texto">Registrar ventas</span>
+      </a>
       {% endif %}
+    </div>
+
+    <div class="menu-secciones" id="menuSecciones">
+      <span class="menu-indicador" aria-hidden="true"></span>
+      <ul class="menu-lista menu-general">
+        {% for s in menu_general() %}{{ enlace(s) }}{% endfor %}
+      </ul>
+      {% for titulo, items in menu_secciones() %}
+      {% set grupo = namespace(activo=false, aviso=false) %}
+      {% for s in items %}{% if es_activo(s.endpoint) %}{% set grupo.activo = true %}{% endif %}{% if contadores.get(s.endpoint) %}{% set grupo.aviso = true %}{% endif %}{% endfor %}
+      <div class="menu-grupo{{ ' contiene-activo' if grupo.activo }}" data-grupo="{{ titulo }}">
+        <button type="button" class="menu-titulo" aria-expanded="true">
+          <span>{{ titulo }}</span>
+          {% if grupo.aviso %}<span class="grupo-punto" title="Hay pendientes en {{ titulo|lower }}"></span>{% endif %}
+          {{ icono('chevron-down', 'menu-flecha') }}
+        </button>
+        <div class="menu-plegable"><ul class="menu-lista">
+          {% for s in items %}{{ enlace(s) }}{% endfor %}
+        </ul></div>
+      </div>
       {% endfor %}
     </div>
 
-    {% if current_user.is_authenticated %}
-    <div class="sesion">
-      <a href="{{ url_for('auth.cuenta') }}" class="sesion-perfil" title="Editar mi perfil">
+    <div class="sesion dropup">
+      <button type="button" class="sesion-perfil" data-bs-toggle="dropdown" aria-expanded="false" title="{{ current_user.nombre }}">
         {% if current_user.foto %}
         <img src="{{ url_for('auth.foto', id=current_user.id, v=current_user.foto[:8]) }}" alt="" class="avatar">
         {% else %}
         <span class="avatar avatar-iniciales">{{ current_user.iniciales }}</span>
         {% endif %}
-        <span class="sesion-datos">
+        <span class="sesion-datos menu-texto">
           <span class="sesion-nombre">{{ current_user.nombre }}</span>
           <span class="sesion-cargo">{{ current_user.cargo }}</span>
         </span>
-      </a>
-      <div class="sesion-acciones">
-        <form method="post" action="{{ url_for('auth.logout') }}">
-          <button class="btn-icono btn-icono-salir" title="Cerrar sesión" aria-label="Cerrar sesión">{{ icono('log-out') }}</button>
-        </form>
-      </div>
+        {{ icono('ellipsis', 'sesion-mas menu-texto') }}
+      </button>
+      <ul class="dropdown-menu sesion-menu">
+        <li class="sesion-menu-cabecera"><strong>{{ current_user.nombre }}</strong><span>{{ NOMBRES_ROLES.get(current_user.rol, current_user.rol) }}</span></li>
+        <li><a class="dropdown-item" href="{{ url_for('auth.cuenta') }}">{{ icono('user-round') }} Mi cuenta</a></li>
+        <li><a class="dropdown-item" href="{{ url_for('auth.cuenta') }}#seguridad">{{ icono('lock-keyhole') }} Contraseña y verificación</a></li>
+        {% if current_user.rol == 'superadmin' and not en_vista_previa() %}
+        <li><a class="dropdown-item" href="{{ url_for('auth.cuenta') }}#vista-previa">{{ icono('eye') }} Ver como otro rol</a></li>
+        {% endif %}
+        <li><hr class="dropdown-divider"></li>
+        <li><form method="post" action="{{ url_for('auth.logout') }}"><button class="dropdown-item item-salir">{{ icono('log-out') }} Cerrar sesión</button></form></li>
+      </ul>
     </div>
-    {% endif %}
   </nav>
+  {% endif %}
 
   <main class="contenido flex-grow-1">
-    {% if current_user.is_authenticated and en_vista_previa() %}
+    {% if autenticado and en_vista_previa() %}
     <div class="vista-previa">
       <span>{{ icono('eye') }} Vista previa: así ve el panel un usuario de <strong>{{ NOMBRES_ROLES[rol_actual()] }}</strong>. No se puede guardar nada.</span>
       <form method="post" action="{{ url_for('auth.salir_vista_previa') }}"><button class="btn btn-sm btn-light">Salir de la vista previa</button></form>
@@ -119,6 +129,48 @@
     {% block content %}{% endblock %}
   </main>
 </div>
+
+{% if autenticado %}
+{# Barra inferior: solo en celular #}
+<nav class="barra-inferior d-lg-none" aria-label="Accesos rápidos">
+  {% for s, corto in menu_movil() %}
+  {% set activo = es_activo(s.endpoint) %}
+  {% set c = contadores.get(s.endpoint) %}
+  <a href="{{ url_for(s.endpoint) }}" class="{{ 'activo' if activo }}" {% if activo %}aria-current="page"{% endif %}>
+    <span class="bi-icono">{{ icono(s.icono) }}{% if c %}<span class="contador contador-{{ c[1] }}">{{ c[0] }}</span>{% endif %}</span>{{ corto }}
+  </a>
+  {% endfor %}
+  <button type="button" data-bs-toggle="offcanvas" data-bs-target="#menuLateral" aria-label="Abrir el menú completo">
+    <span class="bi-icono">{{ icono('layout-grid') }}</span>Más
+  </button>
+</nav>
+
+{# Buscador: Ctrl + K #}
+<div class="buscador" id="buscador" hidden>
+  <div class="buscador-fondo" data-cerrar-buscador></div>
+  <div class="buscador-caja" role="dialog" aria-modal="true" aria-label="Buscar en el panel">
+    <div class="buscador-campo">
+      {{ icono('search') }}
+      <input type="text" id="buscadorTexto" placeholder="Busca una sección, cliente, proveedor o factura…" autocomplete="off" spellcheck="false"
+             role="combobox" aria-expanded="true" aria-controls="buscadorLista">
+      <kbd>Esc</kbd>
+    </div>
+    <div class="buscador-lista" id="buscadorLista" role="listbox"></div>
+    <div class="buscador-pie"><span><kbd>↑</kbd><kbd>↓</kbd> moverse</span><span><kbd>Enter</kbd> abrir</span><span><kbd>Esc</kbd> cerrar</span></div>
+  </div>
+</div>
+{% set secciones_buscador = [] %}
+{% for s in menu_general() %}{% set _ = secciones_buscador.append({'titulo': s.nombre, 'detalle': s.descripcion, 'icono': s.icono, 'url': url_for(s.endpoint)}) %}{% endfor %}
+{% for titulo, items in menu_secciones() %}{% for s in items %}{% set _ = secciones_buscador.append({'titulo': s.nombre, 'detalle': titulo ~ ' · ' ~ s.descripcion, 'icono': s.icono, 'url': url_for(s.endpoint)}) %}{% endfor %}{% endfor %}
+<script>
+  window.PANEL = {
+    secciones: {{ secciones_buscador|tojson }},
+    buscar: "{{ url_for('dashboard.buscar') }}",
+    iconos: "{{ url_for('static', filename='img/iconos.svg') }}",
+  };
+</script>
+{% endif %}
+
 <script>
   // Inyecta el token CSRF en todos los formularios POST de la página
   const tokenCsrf = document.querySelector('meta[name="csrf-token"]').content;
@@ -132,6 +184,7 @@
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+{% if autenticado %}<script src="{{ url_for('static', filename='js/menu.js') }}"></script>{% endif %}
 {% block scripts %}{% endblock %}
 </body>
 </html>

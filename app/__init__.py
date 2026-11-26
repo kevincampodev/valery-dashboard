@@ -94,8 +94,12 @@ def create_app(config_class=Config):
                 abort(403)
         return None
 
+    from .services.menu import general_visible, secciones_visibles, barra_movil, contadores, es_activo, hoy_iso
     app.jinja_env.globals.update(puede_ver=puede_ver, ve_todo=ve_todo, rol_actual=rol_actual,
-                                 en_vista_previa=en_vista_previa, NOMBRES_ROLES=ROLES)
+                                 en_vista_previa=en_vista_previa, NOMBRES_ROLES=ROLES,
+                                 menu_general=general_visible, menu_secciones=secciones_visibles,
+                                 menu_movil=barra_movil, menu_contadores=contadores,
+                                 es_activo=es_activo, hoy_iso=hoy_iso)
 
     @app.errorhandler(403)
     def sin_permiso(error):
